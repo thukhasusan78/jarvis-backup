@@ -13,6 +13,9 @@ async def run_scheduled_task(prompt: str, user_id: int):
     ၂။ အဖြေကို Telegram ပြန်ပို့မယ်။
     """
     logger.info(f"⏰ Running Scheduled Task: {prompt}")
+
+    if not user_id or user_id == 0:
+        user_id = Config.ALLOWED_USER_ID
     
     try:
         # 1. Agent ကို အလုပ်ခိုင်းခြင်း
@@ -23,7 +26,7 @@ async def run_scheduled_task(prompt: str, user_id: int):
         # 2. Telegram ပို့ခြင်း (Log တင်မကတော့ဘူး)
         if Config.TELEGRAM_TOKEN and user_id:
             bot = Bot(token=Config.TELEGRAM_TOKEN)
-            await bot.send_message(chat_id=user_id, text=f"⏰ **Scheduled Report:**\n\n{response}", parse_mode="Markdown")
+            await bot.send_message(chat_id=user_id, text=f"**Scheduled Report:**\n\n{response}", parse_mode="Markdown")
             logger.info("✅ Report sent to Telegram.")
         else:
             logger.warning("⚠️ Cannot send to Telegram: Token or User ID missing.")

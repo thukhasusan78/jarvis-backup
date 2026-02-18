@@ -8,6 +8,8 @@ from config import Config
 from core.agent import JarvisAgent
 # Formatter ကို သုံးမယ်
 from interfaces.formatter import format_response
+# Database ကို လှမ်းခေါ်မယ်
+from memory.db_manager import db_manager
 
 # Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -38,25 +40,43 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """User ဆီက စာဝင်လာတိုင်း ဒီ Function က အလုပ်လုပ်မယ်"""
     user_id = update.effective_user.id
     user_text = update.message.text
+    chat_id = update.effective_chat.id
 
-    # 1. Security Check (မင်း ID မဟုတ်ရင် အလုပ်မလုပ်ဘူး - ပိုက်ဆံကုန်သက်သာအောင်)
+    # 1. Security Check
     if Config.ALLOWED_USER_ID and user_id != Config.ALLOWED_USER_ID:
         await update.message.reply_text("⛔ Access Denied: You are not my master.")
         return
 
-    # 2. Typing Indicator (Jarvis စဉ်းစားနေကြောင်း ပြမယ်)
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    # 2. Reset Command (မှတ်ဉာဏ်ရှင်းချင်ရင်)
+    if user_text.lower() == "/reset" or user_text == "မေ့လိုက်တော့":
+        msg = db_manager.clear_history(user_id)
+        await update.message.reply_text(f"🧹 {msg}")
+        return
 
-    # 3. Agent ကို အလုပ်ခိုင်းမယ်
+    # 3. Typing Indicator
+    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+
+    # 4. Agent ကို အလုပ်ခိုင်းမယ်
     try:
         global agent
         if agent is None:
-            agent = JarvisAgent() # လိုအပ်မှ Agent ကို နှိုးမယ်
+            agent = JarvisAgent()
             
-        # Agent ဆီက အဖြေတောင်းမယ်
-        response = await agent.chat(user_text, user_id=user_id)
+        # 🔥 STEP A: Profile (Long-term) + History (Short-term) ကို ဆွဲထုတ်မယ်
+        profile_data = db_manager.get_user_profile(user_id)
+        short_term_history = db_manager.get_chat_history(user_id, limit=10)
         
-        # 4. အဖြေကို Format ချပြီး ပြန်ပို့မယ်
+        # Profile ကို Context အနေနဲ့ ရှေ့ဆုံးက ပို့မယ်
+        full_context = f"{profile_data}\n\n--- CHAT HISTORY ---\n"
+
+        # 🔥 STEP B: Agent ကို မေးမယ် (Context Memory ထည့်ပေးလိုက်ပြီ)
+        response = await agent.chat(user_text, user_id=user_id, chat_history=short_term_history, context_memory=full_context)
+        
+        # 🔥 STEP C: ပြောပြီးသားတွေကို Database ထဲ ပြန်သိမ်းမယ်
+        db_manager.add_message(user_id, "user", user_text)      # User ပြောတာသိမ်း
+        db_manager.add_message(user_id, "model", response)     # Jarvis ဖြေတာသိမ်း
+        
+        # 5. အဖြေပြန်ပို့မယ်
         formatted_reply = format_response(response)
         await update.message.reply_text(formatted_reply)
 

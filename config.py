@@ -12,7 +12,9 @@ class Config:
     
     # --- 🧠 AI Brain Configuration ---
     # ငွေရှာမယ့် Agent ဖြစ်လို့ အမြန်ဆုံးနဲ့ စရိတ်အသက်သာဆုံး Model ကို သုံးမယ်
-    MODEL_NAME = "gemini-2.5-flash"  
+    MODEL_NAME = "gemini-2.5-flash" 
+
+    SMART_MODEL_NAME = "gemini-3-flash-preview"
     
     # API Keys Management (Round Robin System)
     _keys_str = os.getenv("GEMINI_API_KEYS", "")

@@ -16,6 +16,8 @@ lancedb==0.29.2              # Vector Database
 beautifulsoup4==4.12.3       # HTML Parsing
 aiofiles==24.1.0             # Async File IO
 httpx==0.28.1                # Async HTTP Client
+html2text
+requests
 
 # --- ⚙️ UTILS ---
 tenacity==9.0.0              # Retry Logic
