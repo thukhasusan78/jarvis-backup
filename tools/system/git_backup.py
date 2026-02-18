@@ -1,0 +1,37 @@
+import subprocess
+import logging
+import datetime
+
+logger = logging.getLogger("JARVIS_GIT")
+
+def backup_code(commit_message: str = None) -> str:
+    """
+    Auto-pushes all code changes to GitHub.
+    """
+    try:
+        # 1. Check Status (ပြောင်းလဲမှု ရှိမရှိ စစ်မယ်)
+        status = subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True)
+        
+        if not status.stdout.strip():
+            return "No changes detected. Everything is already up-to-date."
+
+        # 2. Git Add (ဖိုင်အကုန်လုံးကို ထည့်မယ်)
+        subprocess.run("git add .", shell=True, check=True)
+
+        # 3. Git Commit (မှတ်တမ်းတင်မယ်)
+        if not commit_message:
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            commit_message = f"Auto-backup by JARVIS: {timestamp}"
+        
+        subprocess.run(f'git commit -m "{commit_message}"', shell=True, check=True)
+
+        # 4. Git Push (GitHub ပေါ်တင်မယ်)
+        result = subprocess.run("git push -u origin main", shell=True, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            return f"Successfully pushed code to GitHub!\nCommit: '{commit_message}'"
+        else:
+            return f"Push Failed:\n{result.stderr}"
+
+    except Exception as e:
+        return f"Git Error: {str(e)}"

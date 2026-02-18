@@ -1,0 +1,27 @@
+# --- 🚀 CORE API SERVER ---
+fastapi==0.115.6             # Modern Web Framework
+uvicorn[standard]==0.34.0    # Server Runner
+
+# --- 🧠 BRAIN (NEW SDK) ---
+google-genai==1.63.0         # Latest Google Gen AI SDK (Replacing old library)
+python-dotenv==1.0.1         # Environment Variable Loader
+
+# --- 📡 TELEGRAM ---
+python-telegram-bot==22.6    # Latest wrapper
+
+# --- 🛠️ TOOLS ---
+tavily-python==0.7.21        # Search Tool
+playwright==1.58.0           # Browser Automation
+lancedb==0.29.2              # Vector Database
+beautifulsoup4==4.12.3       # HTML Parsing
+aiofiles==24.1.0             # Async File IO
+httpx==0.28.1                # Async HTTP Client
+
+# --- ⚙️ UTILS ---
+tenacity==9.0.0              # Retry Logic
+colorama==0.4.6              # Terminal Colors
+
+# --- tasks --- #
+psutil
+apscheduler
+sqlalchemy

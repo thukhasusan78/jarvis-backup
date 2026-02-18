@@ -1,0 +1,24 @@
+# 1. Security (အရေးအကြီးဆုံး - API Key တွေပါတဲ့ ဖိုင်)
+.env
+
+# 2. System Files (မလိုအပ်တဲ့ အမှိုက်ဖိုင်များ)
+__pycache__/
+*.pyc
+.DS_Store
+
+# 3. Virtual Environment (Library တွေအများကြီးမို့ မတင်ရဘူး)
+venv/
+.venv/
+env/
+
+# 4. Logs (Jarvis ရဲ့ မှတ်တမ်းဖိုင်တွေ)
+*.log
+jarvis.log
+
+# 5. Database & Memory (Data တွေကို GitHub ပေါ် မတင်ချင်ရင်)
+# (Backup လိုချင်ရင်တော့ ဒါကို # ခံပြီး ဖွင့်ထားလို့ရတယ်၊ ဒါပေမဲ့ Data ကြီးရင် မတင်တာကောင်းတယ်)
+*.db
+*.sqlite3
+memory/jarvis_chat.db
+memory/jarvis_schedules.db
+memory/knowledge_lance/
