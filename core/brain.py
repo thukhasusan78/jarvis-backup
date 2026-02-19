@@ -4,6 +4,7 @@ import logging
 from google import genai
 from google.genai import types
 from config import Config
+from core.registry import tool_registry
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -17,158 +18,10 @@ class JarvisBrain:
         self.model_name = Config.MODEL_NAME
         self.system_instruction = self._build_system_instruction()
         
-        # Tool Definitions (AI သိအောင် ကြေညာခြင်း - လက်တွေ့ run မှာက agent.py မှာ)
+        # Registry ထဲက Tool အားလုံးရဲ့ Schema တွေကို အလိုအလျောက် ယူသုံးမယ်
         self.tools_config = [
             types.Tool(
-                function_declarations=[
-                    # 1. Search Web (Tavily)
-                    types.FunctionDeclaration(
-                        name="search_web",
-                        description="Search the internet for real-time information, news, or coding solutions.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={"query": types.Schema(type=types.Type.STRING)},
-                            required=["query"]
-                        )
-                    ),
-                    # 2. Browser Navigation (Playwright)
-                    types.FunctionDeclaration(
-                        name="browser_nav",
-                        description="Navigate to a specific URL using a headless browser.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={"url": types.Schema(type=types.Type.STRING)},
-                            required=["url"]
-                        )
-                    ),
-                    # 3. Read Page Content (Scraper Tool)
-                    types.FunctionDeclaration(
-                        name="read_page_content",
-                        description="Extract and read clean text content from a specific URL. Use this to read news, articles, or documentation efficiently.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={
-                                "url": types.Schema(
-                                    type=types.Type.STRING, 
-                                    description="The full URL of the website to read (e.g., https://example.com)"
-                                )
-                            },
-                            required=["url"]
-                        )
-                    ),
-                    # 4. Shell Execution (The Body)
-                    types.FunctionDeclaration(
-                        name="shell_exec",
-                        description="Execute Linux terminal commands on the VPS. USE WITH CAUTION.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={"command": types.Schema(type=types.Type.STRING)},
-                            required=["command"]
-                        )
-                    ),
-                    # 5. File Read
-                    types.FunctionDeclaration(
-                        name="file_read",
-                        description="Read code or text from a specific file path.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={"path": types.Schema(type=types.Type.STRING)},
-                            required=["path"]
-                        )
-                    ),
-                    # 6. File Write
-                    types.FunctionDeclaration(
-                        name="file_write",
-                        description="Write code or content to a file. Overwrites existing content.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={
-                                "path": types.Schema(type=types.Type.STRING),
-                                "content": types.Schema(type=types.Type.STRING)
-                            },
-                            required=["path", "content"]
-                        )
-                    ),
-                    # 7. PIP Install (Self-Upgrade)
-                    types.FunctionDeclaration(
-                        name="pip_install",
-                        description="Install new Python libraries if needed.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={"package": types.Schema(type=types.Type.STRING)},
-                            required=["package"]
-                        )
-                    ),
-                    # 8. Check Resources (Health)
-                    types.FunctionDeclaration(
-                        name="check_resource",
-                        description="Check current RAM, CPU usage and Disk space.",
-                        parameters=types.Schema(type=types.Type.OBJECT, properties={})
-                    ),
-                    # 9. Screen Capture (Visual Debug)
-                    types.FunctionDeclaration(
-                        name="screen_capture",
-                        description="Take a screenshot of the browser to see what's happening.",
-                        parameters=types.Schema(type=types.Type.OBJECT, properties={})
-                    ),
-                    # 10. Remember Skill (Long-term Memory)
-                    types.FunctionDeclaration(
-                        name="remember_skill",
-                        description="Save a successful solution or method to long-term memory/skills library.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={
-                                "task": types.Schema(type=types.Type.STRING),
-                                "solution": types.Schema(type=types.Type.STRING),
-                                "code_snippet": types.Schema(type=types.Type.STRING)
-                            },
-                            required=["task", "solution"]
-                        )
-                    ),
-
-                    # 11. Manage Schedule
-                    types.FunctionDeclaration(
-                        name="manage_schedule",
-                        description="Schedule a new task or remove an existing one using Cron format.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={
-                                "action": types.Schema(type=types.Type.STRING, enum=["add", "remove", "list"]),
-                                "task_prompt": types.Schema(type=types.Type.STRING, description="What Jarvis should do (e.g., 'Check weather')"),
-                                "cron_expression": types.Schema(type=types.Type.STRING, description="Cron format: 'min hour day month week' (e.g., '0 8 * * *' for daily 8am)"),
-                                "job_id": types.Schema(type=types.Type.STRING, description="Unique ID for the job (e.g., 'weather_daily')")
-                            },
-                            required=["action"]
-                        )
-                    ),
-
-                    # 12. Git Backup 
-                    types.FunctionDeclaration(
-                        name="backup_code",
-                        description="Backup current project code to GitHub repository.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={
-                                "message": types.Schema(type=types.Type.STRING, description="Commit message (optional)")
-                            },
-                            required=[]
-                        )
-                    ),
-
-                    # 13. Remember Fact (Long Term Memory)
-                    types.FunctionDeclaration(
-                        name="remember_fact",
-                        description="Store a permanent fact about the user (e.g., Name, Location, Preferences). Use this when user introduces themselves.",
-                        parameters=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={
-                                "fact_type": types.Schema(type=types.Type.STRING, description="The category (e.g., 'Name', 'Job', 'Location')"),
-                                "fact_value": types.Schema(type=types.Type.STRING, description="The actual fact (e.g., 'Mg Mg', 'Yangon')")
-                            },
-                            required=["fact_type", "fact_value"]
-                        )
-                    ),
-                ]
+                function_declarations=tool_registry.get_all_declarations()
             )
         ]
 
