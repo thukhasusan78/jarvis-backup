@@ -30,7 +30,7 @@ if lancedb:
 
 class VectorStorage:
     def __init__(self):
-        self.db_path = os.path.join(os.path.dirname(__file__), "lancedb_data")
+        self.db_path = Config.VECTOR_DB_PATH
         self.table_name = "jarvis_knowledge"
         self.table = None
         

@@ -9,7 +9,7 @@ from core.agent import JarvisAgent
 # Formatter ကို သုံးမယ်
 from interfaces.formatter import format_response
 # Database ကို လှမ်းခေါ်မယ်
-from memory.db_manager import db_manager
+from memory.memory_controller import memory_controller
 
 # Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -49,7 +49,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 2. Reset Command (မှတ်ဉာဏ်ရှင်းချင်ရင်)
     if user_text.lower() == "/reset" or user_text == "မေ့လိုက်တော့":
-        msg = db_manager.clear_history(user_id)
+        msg = memory_controller.clear_chat(user_id)
         await update.message.reply_text(f"🧹 {msg}")
         return
 
@@ -63,8 +63,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             agent = JarvisAgent()
             
         # 🔥 STEP A: Profile (Long-term) + History (Short-term) ကို ဆွဲထုတ်မယ်
-        profile_data = db_manager.get_user_profile(user_id)
-        short_term_history = db_manager.get_chat_history(user_id, limit=10)
+        profile_data = memory_controller.get_all_user_facts(user_id)
+        short_term_history = memory_controller.get_recent_chat(user_id, limit=10)
         
         # Profile ကို Context အနေနဲ့ ရှေ့ဆုံးက ပို့မယ်
         full_context = f"{profile_data}\n\n--- CHAT HISTORY ---\n"
@@ -73,8 +73,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = await agent.chat(user_text, user_id=user_id, chat_history=short_term_history, context_memory=full_context)
         
         # 🔥 STEP C: ပြောပြီးသားတွေကို Database ထဲ ပြန်သိမ်းမယ်
-        db_manager.add_message(user_id, "user", user_text)      # User ပြောတာသိမ်း
-        db_manager.add_message(user_id, "model", response)     # Jarvis ဖြေတာသိမ်း
+        memory_controller.add_chat_message(user_id, "user", user_text)      # User ပြောတာသိမ်း
+        memory_controller.add_chat_message(user_id, "model", response)     # Jarvis ဖြေတာသိမ်း
         
         # 5. အဖြေပြန်ပို့မယ်
         formatted_reply = format_response(response)

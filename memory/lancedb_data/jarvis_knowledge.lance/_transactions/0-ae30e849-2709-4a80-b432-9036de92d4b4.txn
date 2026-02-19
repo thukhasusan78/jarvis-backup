@@ -1,3 +1,0 @@
-$ae30e849-2709-4a80-b432-9036de92d4b4²Öid ÿÿÿÿÿÿÿÿÿ*string8!category ÿÿÿÿÿÿÿÿÿ*string8&task_or_query ÿÿÿÿÿÿÿÿÿ*string8!solution ÿÿÿÿÿÿÿÿÿ*string8%code_snippet ÿÿÿÿÿÿÿÿÿ*string8"	timestamp ÿÿÿÿÿÿÿÿÿ*string84vector ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:38408"!
-lance.auto_cleanup.interval20"'
-lance.auto_cleanup.older_than14days

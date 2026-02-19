@@ -9,8 +9,7 @@ from typing import Dict, Any
 from core.brain import JarvisBrain
 from core.reflector import JarvisReflector
 from core.registry import tool_registry
-from config import Config
-from memory.db_manager import db_manager    
+from config import Config    
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO)
