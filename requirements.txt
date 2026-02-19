@@ -22,6 +22,7 @@ requests
 # --- ⚙️ UTILS ---
 tenacity==9.0.0              # Retry Logic
 colorama==0.4.6              # Terminal Colors
+pytz
 
 # --- tasks --- #
 psutil

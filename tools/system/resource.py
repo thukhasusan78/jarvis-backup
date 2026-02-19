@@ -3,6 +3,8 @@ import logging
 import datetime
 from typing import Dict, List
 from google.genai import types
+from config import Config
+import pytz
 
 from tools.base import BaseTool
 
@@ -29,7 +31,7 @@ class ResourceTool(BaseTool):
             cpu_usage = psutil.cpu_percent(interval=1)
             ram = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
-            boot_time = datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
+            boot_time = datetime.datetime.fromtimestamp(psutil.boot_time(), tz=Config.TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
 
             # 2. RAM အများဆုံးစားနေသော Process ၅ ခု (The Real Culprits)
             processes = []

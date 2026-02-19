@@ -1,5 +1,6 @@
 # 1. Security (အရေးအကြီးဆုံး - API Key တွေပါတဲ့ ဖိုင်)
 .env
+core/prompts/system.md
 
 # 2. System Files (မလိုအပ်တဲ့ အမှိုက်ဖိုင်များ)
 __pycache__/

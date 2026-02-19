@@ -3,6 +3,7 @@ import logging
 import datetime
 from typing import Dict, List
 from google.genai import types
+from config import Config
 
 from tools.base import BaseTool
 
@@ -40,8 +41,8 @@ class GitBackupTool(BaseTool):
 
             # 3. Git Commit (မှတ်တမ်းတင်မယ်)
             if not commit_message:
-                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                commit_message = f"Auto-backup by JARVIS: {timestamp}"
+                timestamp = datetime.datetime.now(Config.TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+                commit_message = f"Auto-backup by JARVIS: {timestamp}" 
             
             subprocess.run(f'git commit -m "{commit_message}"', shell=True, check=True)
 

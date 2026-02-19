@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from itertools import cycle
-
+import pytz
 # .env ဖိုင်ထဲက အချက်အလက်တွေကို ဆွဲယူခြင်း
 load_dotenv()
 
@@ -55,6 +55,7 @@ class Config:
     # --- ⚙️ Server Config ---
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", 8000))
+    TIMEZONE = pytz.timezone('Asia/Yangon')
 
 # Folder တွေ မရှိရင် အလိုအလျောက် ဆောက်ပေးမယ့် code
 os.makedirs("memory", exist_ok=True)

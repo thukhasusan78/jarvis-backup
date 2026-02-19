@@ -3,7 +3,8 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.triggers.cron import CronTrigger
 import logging
 import os
-from tasks.executor import run_scheduled_task  # ခုနကရေးတဲ့ကောင်
+from config import Config
+from tasks.executor import run_scheduled_task 
 
 logger = logging.getLogger("JARVIS_SCHEDULER")
 
@@ -13,7 +14,7 @@ class JarvisScheduler:
         jobstores = {
             'default': SQLAlchemyJobStore(url='sqlite:///memory/jarvis_schedules.db')
         }
-        self.scheduler = AsyncIOScheduler(jobstores=jobstores)
+        self.scheduler = AsyncIOScheduler(jobstores=jobstores, timezone=Config.TIMEZONE)
 
     def start(self):
         if not self.scheduler.running:
