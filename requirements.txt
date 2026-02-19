@@ -28,3 +28,7 @@ pytz
 psutil
 apscheduler
 sqlalchemy
+
+# --- MEMORY --- 
+lancedb
+sentence-transformers

@@ -1,7 +1,7 @@
 import datetime
 import logging
 from config import Config
-from memory.db_manager import db_manager
+from memory.memory_controller import memory_controller
 
 logger = logging.getLogger("JARVIS_CONTEXT")
 
@@ -17,8 +17,7 @@ class ContextManager:
         # 2. Database (Long-term Memory) ထဲက User Profile ကို သွားဆွဲထုတ်မယ် (ဒီနေရာကို ပြင်ထားပါတယ်)
         profile_str = "- No specific user facts saved yet."
         try:
-            # db_manager ထဲက get_user_profile ကို မှန်ကန်စွာ ခေါ်ယူခြင်း
-            fetched_profile = db_manager.get_user_profile(Config.ALLOWED_USER_ID)
+            fetched_profile = memory_controller.get_all_user_facts(Config.ALLOWED_USER_ID)
             if fetched_profile:
                 profile_str = fetched_profile
         except Exception as e:

@@ -4,7 +4,7 @@ from google.genai import types
 
 from tools.base import BaseTool
 from config import Config
-from memory.db_manager import db_manager
+from memory.memory_controller import memory_controller
 
 logger = logging.getLogger("JARVIS_MEMORY_TOOL")
 
@@ -41,7 +41,7 @@ class RememberFactTool(BaseTool):
         user_id = Config.ALLOWED_USER_ID 
         
         try:
-            if db_manager.update_profile(user_id, key, val):
+            if memory_controller.save_user_fact(user_id, key, val):
                 return f"✅ Saved to Long-term Memory: {key} = {val}"
             return "Error saving fact to database."
         except Exception as e:
