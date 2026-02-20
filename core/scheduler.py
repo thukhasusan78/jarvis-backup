@@ -6,6 +6,8 @@ import os
 from config import Config
 import pytz
 from tasks.executor import run_scheduled_task 
+from apscheduler.triggers.date import DateTrigger
+from datetime import datetime
 
 logger = logging.getLogger("JARVIS_SCHEDULER")
 
@@ -26,25 +28,32 @@ class JarvisScheduler:
         if self.scheduler.running:
             self.scheduler.shutdown()
 
-    def add_task(self, prompt: str, user_id: int, cron_str: str, job_id: str):
-        """
-        Dynamic Job Adding Logic
-        cron_str format: "minute hour day month day_of_week"
-        Example: "30 8 * * *" -> နေ့တိုင်း ၈ နာရီခွဲ
-        """
+    def add_task(self, prompt: str, user_id: int, job_id: str, schedule_type: str = "cron", cron_str: str = None, run_at: str = None):
+        """Dynamic Task Scheduler (Supports Cron & One-time Date)"""
         try:
-            # Cron string ကို ဖြိုခွဲမယ်
-            mi, h, d, m, dow = cron_str.split()
-            
+            if schedule_type == "cron":
+                # ထပ်ခါတလဲလဲ အလုပ်များ (ဥပမာ - နေ့တိုင်း ၈ နာရီ)
+                mi, h, d, m, dow = cron_str.split()
+                # 🔥 FIX: Config.TIMEZONE က အသင့်ဖြစ်ပြီးသားမို့ တိုက်ရိုက်ယူသုံးမယ်
+                trigger = CronTrigger(minute=mi, hour=h, day=d, month=m, day_of_week=dow, timezone=Config.TIMEZONE)
+                msg = f"Cron: {cron_str}"
+            else:
+                # တစ်ကြိမ်တည်း အလုပ်များ (ဥပမာ - နောက် ၄ မိနစ်နေရင်)
+                run_time = datetime.strptime(run_at, "%Y-%m-%d %H:%M:%S")
+                run_time = Config.TIMEZONE.localize(run_time) # မြန်မာအချိန်ကို ကပ်ပေးမယ်
+                trigger = DateTrigger(run_date=run_time)
+                msg = f"Time: {run_at}"
+
             self.scheduler.add_job(
                 run_scheduled_task,
-                trigger=CronTrigger(minute=mi, hour=h, day=d, month=m, day_of_week=dow),
-                args=[prompt, user_id], # Executor ဆီပို့မယ့် စာသား
+                trigger=trigger,
+                args=[prompt, user_id],
                 id=job_id,
                 replace_existing=True
             )
-            return f"✅ Scheduled: '{prompt}' at '{cron_str}' (ID: {job_id})"
+            return f"✅ Scheduled: '{prompt}' at [{msg}] (ID: {job_id})"
         except Exception as e:
+            logger.error(f"Schedule Error: {e}")
             return f"❌ Failed to schedule: {str(e)}"
 
     def remove_task(self, job_id: str):

@@ -21,7 +21,19 @@ async def run_scheduled_task(prompt: str, user_id: int):
         # 1. Agent ကို အလုပ်ခိုင်းခြင်း
         # (Task တစ်ခု run တိုင်း Agent အသစ်ခေါ်တာက Memory Leak မဖြစ်အောင်ပါ)
         agent = JarvisAgent()
-        response = await agent.chat(prompt, user_id=user_id)
+        
+        # 🔥 FIX: AI ကို "ဒါ နှိုးစက်မြည်တာ၊ ဆရာ့ကို သွားသတင်းပို့တော့" လို့ အတိအကျ အမိန့်ပေးခြင်း
+        system_trigger_prompt = f"""
+        [SYSTEM ALERT: SCHEDULED EVENT TRIGGERED]
+        TIME HAS COME FOR TASK: "{prompt}"
+        
+        INSTRUCTION: 
+        You are JARVIS. The scheduled time for the above task has arrived. 
+        Do NOT ask the user when to schedule this. It is happening NOW.
+        - If it's a reminder, notify the Sir immediately (e.g., "Sir, it is time to go to work.").
+        - If it's a research/report task, use your tools to get the data first, then present the final report to the Sir.
+        """
+        response = await agent.chat(system_trigger_prompt, user_id=user_id)
         
         # 2. Telegram ပို့ခြင်း (Log တင်မကတော့ဘူး)
         if Config.TELEGRAM_TOKEN and user_id:

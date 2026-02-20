@@ -26,13 +26,22 @@ class ScheduleTool(BaseTool):
                 type=types.Type.STRING, 
                 description="What Jarvis should do (e.g., 'Check weather')"
             ),
+            "schedule_type": types.Schema(
+                type=types.Type.STRING, 
+                enum=["cron", "date"],
+                description="Use 'cron' for daily/weekly repeating tasks. Use 'date' for one-time tasks (e.g., 'in 5 minutes')."
+            ),
             "cron_expression": types.Schema(
                 type=types.Type.STRING, 
-                description="Cron format: 'min hour day month week' (e.g., '0 8 * * *' for daily 8am)"
+                description="For 'cron' type: 'min hour day month week' (e.g., '0 8 * * *'). Leave empty if type is 'date'."
+            ),
+            "run_at": types.Schema(
+                type=types.Type.STRING, 
+                description="For 'date' type: Exact future time in 'YYYY-MM-DD HH:MM:SS' format (Asia/Yangon time). Leave empty if type is 'cron'."
             ),
             "job_id": types.Schema(
                 type=types.Type.STRING, 
-                description="Unique ID for the job (e.g., 'weather_daily')"
+                description="Unique ID for the job"
             )
         }
 
@@ -47,17 +56,26 @@ class ScheduleTool(BaseTool):
         try:
             if action == "add":
                 prompt = kwargs.get("task_prompt")
+                sched_type = kwargs.get("schedule_type", "cron")
                 cron = kwargs.get("cron_expression")
+                run_at = kwargs.get("run_at")
                 jid = kwargs.get("job_id")
                 
-                if not prompt or not cron:
-                    return "Error: 'task_prompt' and 'cron_expression' are required to add a task."
+                if not prompt: return "Error: 'task_prompt' is required."
+                if sched_type == "cron" and not cron: return "Error: 'cron_expression' is required for cron type."
+                if sched_type == "date" and not run_at: return "Error: 'run_at' is required for date type."
 
-                # 🔥 FIX: ID မပေးရင် Auto Unique ID ထုတ်ပေးမယ် (မူရင်း Logic အတိုင်း)
                 if not jid or jid == "auto_task":
                     jid = f"task_{uuid.uuid4().hex[:6]}"
                 
-                return scheduler.add_task(prompt, Config.ALLOWED_USER_ID, cron, jid)
+                return scheduler.add_task(
+                    prompt=prompt, 
+                    user_id=Config.ALLOWED_USER_ID, 
+                    job_id=jid, 
+                    schedule_type=sched_type, 
+                    cron_str=cron, 
+                    run_at=run_at
+                )
             
             elif action == "remove":
                 jid = kwargs.get("job_id")
