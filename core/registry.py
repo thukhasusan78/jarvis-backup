@@ -11,9 +11,14 @@ logger = logging.getLogger("TOOL_REGISTRY")
 
 class ToolRegistry:
     def __init__(self):
-        # Tool တွေကို သိမ်းထားမယ့် Dictionary (ဥပမာ - {"search_web": SearchToolInstance})
         self._tools: Dict[str, BaseTool] = {}
-        self._discover_and_load_tools()
+        self._discover_and_load_tools("tools")
+        self.reload_custom_tools() # Tool အသစ်တွေကိုပါ ဆွဲသွင်းမယ်
+
+    def reload_custom_tools(self):
+        """Agent က Tool အသစ်ရေးပြီးတိုင်း Auto Update လုပ်ပေးမည့်စနစ်"""
+        if os.path.exists("custom_skills"):
+            self._discover_and_load_tools("custom_skills")
 
     def _discover_and_load_tools(self, package_name: str = "tools"):
         """
@@ -46,12 +51,34 @@ class ToolRegistry:
                     except Exception as e:
                         logger.error(f"❌ '{module_name}' ကို ခေါ်ယူရာတွင် အမှားဖြစ်နေသည်: {e}")
 
-    def get_all_declarations(self) -> List[types.FunctionDeclaration]:
-        """
-        Brain (Gemini) ဆီ ပို့ပေးဖို့ Tool အားလုံးရဲ့ Schema တွေကို စုထုတ်ပေးမယ်။
-        (Brain.py မှာ ဒါလေး တစ်ကြောင်းခေါ်လိုက်ရုံနဲ့ Tool အကုန်ရပြီ)
-        """
-        return [tool.get_declaration() for tool in self._tools.values()]
+    def get_declarations_for_role(self, role: str) -> List[types.FunctionDeclaration]:
+        """Role အလိုက် သင့်တော်တဲ့ Tool များကိုသာ ရွေးထုတ်ပေးမည့် Auto-Router"""
+        declarations = []
+        for tool in self._tools.values():
+            assigned_role = getattr(tool, "owner_role", "all")
+            
+            # Built-in Tool များအတွက် Folder ပေါ်မူတည်ပြီး Auto-Assign လုပ်ခြင်း
+            if assigned_role == "all":
+                module = tool.__module__
+                if "tools.browser" in module:
+                    assigned_role = "web_surfer"
+                elif "tools.system" in module:
+                    if tool.name in ["delegate_task", "manage_schedule"]:
+                        assigned_role = "ceo"
+                    else:
+                        assigned_role = "sysadmin"
+                elif "tools.web" in module:
+                    assigned_role = "researcher"
+                elif "tools.memory" in module:
+                    assigned_role = "ceo"
+                elif "custom_skills" in module:
+                    assigned_role = "all" # အသစ်ရေးတဲ့ Tool တွေကို အကုန်သုံးခွင့်ပေးမယ်
+
+            # ကိုယ့် Role နဲ့ ကိုက်ညီရင် (သို့) အကုန်သုံးလို့ရတဲ့ Tool ဆိုရင် ခေါင်းထဲထည့်ပေးမယ်
+            if assigned_role == "all" or assigned_role == role:
+                declarations.append(tool.get_declaration())
+                
+        return declarations
 
     async def execute_tool(self, tool_name: str, **kwargs) -> str:
         """

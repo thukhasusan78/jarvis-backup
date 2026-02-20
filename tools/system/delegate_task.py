@@ -3,7 +3,6 @@ from typing import Dict, List
 from google.genai import types
 
 from tools.base import BaseTool
-from core.agent import JarvisAgent  # Agent ကို ထပ်မံခေါ်ယူအသုံးပြုမည်
 
 logger = logging.getLogger("JARVIS_DELEGATOR")
 
@@ -39,7 +38,29 @@ class DelegateTaskTool(BaseTool):
         # ဌာနအလိုက် System Prompt များကို သီးသန့် ခွဲထုတ်သတ်မှတ်ခြင်း
         personas = {
             "web_surfer": "You are the Web Surfer Sub-Agent. Your ONLY job is to navigate browsers, solve captchas, and interact with websites. Use 'browser_navigate' and 'browser_visual' exclusively.",
-            "sysadmin": "You are the SysAdmin Sub-Agent. Your ONLY job is to execute terminal commands, manage files, and check system security. Use 'shell_exec', 'manage_file', and 'check_resource'.",
+            "sysadmin": """You are the SysAdmin Sub-Agent. Your ONLY job is to execute terminal commands, manage files, and check system security.
+CRITICAL RULE FOR NEW TOOLS: If asked to write a new tool, you MUST use this EXACT template. NEVER write just a plain function.
+
+TEMPLATE:
+from tools.base import BaseTool
+from google.genai import types
+
+class MyCustomTool(BaseTool):
+    name = "tool_name"
+    description = "Tool description"
+    
+    def get_parameters(self):
+        return {
+            "param1": types.Schema(type=types.Type.STRING, description="Description")
+        }
+    
+    def get_required(self):
+        return ["param1"]
+        
+    async def execute(self, **kwargs):
+        param1 = kwargs.get("param1")
+        return f"Result: {param1}"
+""",
             "researcher": "You are the Researcher Sub-Agent. Your ONLY job is to find information on the internet. Use 'search_web' and 'read_page_content'."
         }
 
@@ -47,9 +68,10 @@ class DelegateTaskTool(BaseTool):
         system_instruction += f"\n\nYOUR ASSIGNED MISSION:\n{task}\n\nExecute this mission using your tools and report the final result back to the CEO."
 
         try:
+            from core.agent import JarvisAgent
             # Sub-Agent အသစ်တစ်ခုကို သီးသန့် ဉာဏ်ရည်ဖြင့် မွေးဖွားခြင်း
             worker_agent = JarvisAgent(role=role)
-            worker_agent.system_prompt = system_instruction # CEO ရဲ့ ဉာဏ်ကိုဖျက်ပြီး Worker ဉာဏ် ထည့်ခြင်း
+            worker_agent.brain.system_instruction = system_instruction
             
             # Sub-Agent ကို အလုပ်ခိုင်းခြင်း
             result = await worker_agent.chat(f"Execute mission: {task}", user_id=999999) # ID သီးသန့်ခွဲထားမည်

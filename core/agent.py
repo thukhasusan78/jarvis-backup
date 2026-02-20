@@ -16,11 +16,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("JARVIS_AGENT")
 
 class JarvisAgent:
-    def __init__(self):
+    def __init__(self, role: str = "ceo"):
         """Jarvis Agent - The Executive Manager"""
-        logger.info("🤖 Initializing Jarvis Agent (Professional Build)...")
+        self.role = role
+        logger.info(f"🤖 Initializing Agent [{self.role.upper()}]...")
         
-        self.brain = JarvisBrain()
+        # Agent အသစ်နိုးလာတိုင်း Tool အသစ်တွေ ရှိမရှိ အမြဲစစ်မယ် (Auto Reload Magic)
+        tool_registry.reload_custom_tools()
+        
+        # Brain ဆီကို Role အတိအကျ ပို့ပေးမယ်
+        self.brain = JarvisBrain(role=self.role)
         self.reflector = JarvisReflector()
 
         logger.info(f"✅ Agent Online: {Config.BOT_NAME} v{Config.VERSION}")

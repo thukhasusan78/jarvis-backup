@@ -8,6 +8,7 @@ class BaseTool:
     """
     name: str = "base_tool"
     description: str = "Base description"
+    owner_role: str = "all"  # 'ceo', 'web_surfer', 'sysadmin', 'researcher', သို့မဟုတ် 'all'
     
     def get_parameters(self) -> Dict[str, types.Schema]:
         """

@@ -12,20 +12,27 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("JARVIS_BRAIN")
 
 class JarvisBrain:
-    def __init__(self):
+    def __init__(self, role: str = "ceo"):
         """
         Jarvis Brain Initialization
         """
-        self.model_name = Config.MODEL_NAME
+        self.role = role
+        # 👈 FIX: Sysadmin ကို Coding သေချာရေးနိုင်ရန် Smart Model (Slow Brain) ချိတ်ပေးမည်
+        if role == "sysadmin":
+            self.model_name = Config.SMART_MODEL_NAME
+        else:
+            self.model_name = Config.MODEL_NAME
+            
+        self.role = role
         # system.md ဖိုင်ထဲကနေ Personality ကို လှမ်းဖတ်မယ်
         prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'system.md')
         with open(prompt_path, 'r', encoding='utf-8') as f:
             self.system_instruction = f.read()
         
-        # Registry ထဲက Tool အားလုံးရဲ့ Schema တွေကို အလိုအလျောက် ယူသုံးမယ်
+        # Registry ကနေ Role နဲ့ ကိုက်ညီတာကိုပဲ အလိုလို ခွဲယူမယ်
         self.tools_config = [
             types.Tool(
-                function_declarations=tool_registry.get_all_declarations()
+                function_declarations=tool_registry.get_declarations_for_role(self.role)
             )
         ]
 
