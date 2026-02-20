@@ -23,3 +23,7 @@ jarvis.log
 memory/jarvis_chat.db
 memory/jarvis_schedules.db
 memory/knowledge_lance/
+memory/browser_profile/
+memory/
+custom_skills/
+workspace/
