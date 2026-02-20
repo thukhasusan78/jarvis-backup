@@ -25,75 +25,89 @@ class JarvisAgent:
 
         logger.info(f"✅ Agent Online: {Config.BOT_NAME} v{Config.VERSION}")
 
-    # 🔥 FIX: context_memory ကို လက်ခံအောင် ပြင်လိုက်ပြီ
-    async def chat(self, user_input: str, user_id: int = 0, chat_history: list = [], context_memory: str = "") -> str:
-        """The Main Loop"""
+    # 🔥 FIX: context_memory နဲ့ Status Update ကို လက်ခံအောင် ပြင်လိုက်ပြီ
+    async def chat(self, user_input: str, user_id: int = 0, chat_history: list = [], context_memory: str = "", send_status=None) -> str:
+        """The Main Loop (ReAct Architecture)"""
         logger.info(f"📩 User ({user_id}): {user_input}")
 
-        # --- STEP 1: THINK ---
-        # Brain ကို Context ပါ ထည့်ပေးလိုက်မယ်
-        response = self.brain.think(user_input, chat_history, context_memory)
+        current_task_context = user_input
+        max_loops = 5 # Tool အများဆုံး ၅ ခါ ဆက်တိုက်သုံးခွင့်ပေးမယ်
+        loop_count = 0
 
-        try:
-            function_call = None
-            if response.candidates and response.candidates[0].content.parts:
-                for part in response.candidates[0].content.parts:
-                    if part.function_call:
-                        function_call = part.function_call
-                        break 
+        while loop_count < max_loops:
+            loop_count += 1
+            try:
+                # --- THINK ---
+                response = self.brain.think(current_task_context, chat_history, context_memory)
 
-            # --- CASE A: Direct Text Response ---
-            if not function_call:
-                return self._extract_text(response)
+                # 🔥 FIX: Brain က API Object အစား စာသား (String) ပြန်ပို့လိုက်ရင် Crash မဖြစ်အောင် ကာကွယ်မယ်
+                if isinstance(response, str):
+                    logger.warning(f"⚠️ Brain Error Fallback: {response}")
+                    if loop_count == 1:
+                        return response # ပထမဆုံးအကြိမ်မှာတင် Error တက်ရင် ဆရာ့ဆီ တန်းပို့မယ်
+                    else:
+                        # Tool တွေသုံးနေရင်း ကြားထဲ Error တက်ရင် ဆက်မလုပ်တော့ဘဲ ရပ်မယ်
+                        return f"အလုပ်လုပ်ဆောင်နေစဉ် အခက်အခဲဖြစ်သွားပါသည်။ (Error: {response})"
 
-            # --- CASE B: Tool Execution ---
-            else:
+                function_call = None
+                # 🔥 FIX: hasattr သုံးပြီး candidates ရှိမှသာ ဆက်အလုပ်လုပ်အောင် ကာကွယ်မယ်
+                if hasattr(response, 'candidates') and response.candidates and response.candidates[0].content.parts:
+                    for part in response.candidates[0].content.parts:
+                        if part.function_call:
+                            function_call = part.function_call
+                            break
+
+                # --- CASE A: Direct Text Response (Tool သုံးစရာ မလိုတော့ရင် အဖြေထုတ်ပေးမယ်) ---
+                if not function_call:
+                    return self._extract_text(response)
+
+                # --- CASE B: Tool Execution (Tool ဆက်သုံးမယ်) ---
                 tool_name = function_call.name
                 tool_args = dict(function_call.args)
-                logger.info(f"🛠️ Brain requires tool: {tool_name} | Args: {tool_args}")
+                logger.info(f"🛠️ Loop {loop_count}: Brain requires tool: {tool_name} | Args: {tool_args}")
                 
-                # Run Tool
+                # 📡 Telegram သို့ လက်ရှိအခြေအနေ လှမ်းပို့ပေးမယ့် အပိုင်း
+                if send_status:
+                    if tool_name == "search_web":
+                        await send_status("🔍 အင်တာနက်တွင် အချက်အလက် ရှာဖွေနေပါသည်...")
+                    elif tool_name == "read_page_content":
+                        await send_status("📖 ဝဘ်ဆိုဒ်ကို ဝင်ရောက်ဖတ်ရှုနေပါသည်...")
+                    elif tool_name == "shell_exec":
+                        await send_status("💻 System Command ကို Run နေပါသည်...")
+                    elif tool_name == "manage_knowledge":
+                        await send_status("🧠 Deep Memory တွင် မှတ်ဉာဏ် ရှာဖွေ/သိမ်းဆည်းနေပါသည်...")
+                    else:
+                        await send_status(f"⚙️ {tool_name} ကို အသုံးပြုနေပါသည်...")
+
+                # Tool ကို Run မယ်
                 tool_result = await self._execute_tool(tool_name, tool_args)
                 
-                # --- SELF-CORRECTION LOOP ---
+                # 🔥 ပြင်ဆင်ချက်: Output အလွတ်ဖြစ်နေရင် အောင်မြင်ကြောင်း AI ကို သေချာပြောပြရန်
+                if not tool_result or str(tool_result).strip() == "":
+                    tool_result = "[Success] Command executed silently with no errors."
+                
+                # --- SELF-CORRECTION LOOP (For Shell) ---
                 if tool_name == "shell_exec" and self._is_error(tool_result):
-                    logger.warning(f"⚠️ Error detected via Shell. Activating Reflector...")
+                    logger.warning(f"⚠️ Error detected. Activating Reflector...")
                     fix_command = self.reflector.reflect_and_fix(
-                        task=user_input,
+                        task=current_task_context,
                         failed_command=tool_args.get("command"),
                         error_log=tool_result
                     )
                     if fix_command:
-                        logger.info(f"🚑 Retrying with Fixed Command: {fix_command}")
+                        if send_status:
+                            await send_status("🚑 Error တက်သွားသဖြင့် အလိုအလျောက် ပြုပြင်နေပါသည်...")
                         tool_result = await self._execute_tool("shell_exec", {"command": fix_command})
                         tool_result += f"\n\n(✨ SYSTEM NOTE: Auto-fixed via Reflector Protocol.)"
 
-                # Brain ကို အဖြေပြန်ပေးမယ် (Strict Prompt)
-                final_response = self.brain.think(
-                    user_input=f"""
-                    SYSTEM REPORT: 
-                    - User asked: '{user_input}'
-                    - Tool used: '{tool_name}'
-                    - Tool Output: {tool_result}
-                    
-                    INSTRUCTION: 
-                    - Based ONLY on the Tool Output above, provide the final answer to the user in Burmese.
-                    - If the search result has a direct answer (e.g., '32°C'), use it!
-                    - DO NOT use any more tools.
-                    """,
-                    chat_history=chat_history
-                )
-                
-                result_text = self._extract_text(final_response)
-                
-                if result_text == "...":
-                    return f"System processing completed. (Tool Output: {str(tool_result)[:100]})."
-                
-                return result_text
+                # Tool ရဲ့ အဖြေကို Context ထဲ ပြန်ထည့်ပြီး နောက်တစ်ပတ် ပြန်စဉ်းစားခိုင်းမယ် (The Loop)
+                current_task_context += f"\n\n[SYSTEM: Tool '{tool_name}' executed. Output:\n{tool_result}]\n\n⚠️ CRITICAL INSTRUCTION: If the user's requested task is completely fulfilled, DO NOT call any more tools. Reply directly with the final text answer to the user in Burmese to conclude the task."
 
-        except Exception as e:
-            logger.error(f"❌ Critical Error: {e}")
-            return f"System Error: {str(e)}"
+            except Exception as e:
+                logger.error(f"❌ Critical Error in Loop: {e}")
+                return f"System Error: {str(e)}"
+                
+        return "ခိုင်းစေထားသော အလုပ်မှာ အဆင့်များလွန်းသဖြင့် ရပ်နားလိုက်ပါသည်။"
 
     def _is_error(self, result: str) -> bool:
         error_signals = ["STDERR", "Error:", "Traceback", "Exception", "TIMEOUT ALERT", "SAFETY ALERT", "command not found"]

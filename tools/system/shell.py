@@ -5,12 +5,10 @@ import os
 from typing import Dict, List
 from google.genai import types
 
-# ဖခင် Class ကို လှမ်းခေါ်မယ်
 from tools.base import BaseTool
 
 logger = logging.getLogger("JARVIS_SHELL")
 
-# ⛔ မူရင်း Safety List (လုံးဝ မလျှော့ဘူး)
 PROTECTED_ITEMS = [
     "core", "tools", "memory", "interfaces", "main.py", "config.py", 
     "tasks", "venv", ".env", ".git", "/etc", "/boot", "/bin"
@@ -19,7 +17,7 @@ PROTECTED_ITEMS = [
 class ShellTool(BaseTool):
     """
     Executes Linux shell commands on the VPS. 
-    ENHANCED: Captures Timeouts & Partial Logs for Self-Correction.
+    ENHANCED: Properly handles silent success without confusing the AI.
     """
     name = "shell_exec"
     description = "Execute Linux terminal commands on the VPS. USE WITH CAUTION."
@@ -40,7 +38,7 @@ class ShellTool(BaseTool):
         if not command:
             return "Error: No command provided."
 
-        # --- 🛡️ SMART SAFETY CHECK (မူရင်း Logic) ---
+        # --- 🛡️ SMART SAFETY CHECK ---
         dangerous_keywords = ["rm ", "mv ", ">", "truncate", "dd "]
         is_destructive = any(keyword in command for keyword in dangerous_keywords)
         
@@ -54,7 +52,6 @@ class ShellTool(BaseTool):
         logger.info(f"💻 Executing: {command}")
         
         try:
-            # Timeout ကို ၆၀ စက္ကန့်ထားမယ် (User Interaction လိုရင် မြန်မြန်သိအောင်)
             result = subprocess.run(
                 command, 
                 shell=True, 
@@ -63,14 +60,22 @@ class ShellTool(BaseTool):
                 timeout=60 
             )
             
-            output = f"STDOUT:\n{result.stdout}\n"
-            if result.stderr:
-                output += f"\nSTDERR (Error Logs):\n{result.stderr}"
+            # 🔥 FIX: STDOUT အလွတ်ကြီး ထွက်မလာအောင် သေချာစစ်ထုတ်မယ်
+            output = ""
+            if result.stdout and result.stdout.strip():
+                output += f"STDOUT:\n{result.stdout.strip()}\n"
+            if result.stderr and result.stderr.strip():
+                output += f"STDERR (Error Logs):\n{result.stderr.strip()}"
                 
-            return output.strip() or "Command executed successfully (No output)."
+            final_output = output.strip()
+            
+            # Output လုံးဝမရှိရင် AI နားလည်အောင် Success လို့ တိတိကျကျ ပြောပြမယ်
+            if not final_output:
+                return "[Success] Command executed silently with no errors. Task completed."
+                
+            return final_output
 
         except subprocess.TimeoutExpired as e:
-            # 🔥 THE UPGRADE: Timeout ဖြစ်ရင် ရသလောက် Log ကို ပြန်ပို့မယ်
             partial_output = ""
             if e.stdout: partial_output += f"STDOUT:\n{e.stdout.decode('utf-8', errors='ignore')}\n"
             if e.stderr: partial_output += f"STDERR:\n{e.stderr.decode('utf-8', errors='ignore')}\n"

@@ -69,12 +69,39 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Profile ကို Context အနေနဲ့ ရှေ့ဆုံးက ပို့မယ်
         full_context = f"{profile_data}\n\n--- CHAT HISTORY ---\n"
 
-        # 🔥 STEP B: Agent ကို မေးမယ် (Context Memory ထည့်ပေးလိုက်ပြီ)
-        response = await agent.chat(user_text, user_id=user_id, chat_history=short_term_history, context_memory=full_context)
+        # Telegram Message ကို Edit လုပ်မယ့်စနစ်
+        status_msg = [None] # ပို့ထားတဲ့ Message ID ကို မှတ်ထားဖို့
+        
+        async def send_status_update(msg):
+            try:
+                if status_msg[0] is None:
+                    # ပထမဆုံးအကြိမ်ဆိုရင် စာအသစ် ပို့မယ်
+                    status_msg[0] = await context.bot.send_message(chat_id=chat_id, text=f"⏳ <i>{msg}</i>", parse_mode="HTML")
+                else:
+                    # ရှိပြီးသားဆိုရင် အဲ့ဒီစာကိုပဲ Edit ထပ်လုပ်မယ် (စာတွေ ရှည်မထွက်လာတော့ဘူး)
+                    await status_msg[0].edit_text(text=f"⏳ <i>{msg}</i>", parse_mode="HTML")
+            except Exception:
+                pass
+
+        # 🔥 STEP B: Agent ကို မေးမယ် (Context, History နဲ့ Status Update Function ပါ ထည့်ပေးလိုက်မယ်)
+        response = await agent.chat(
+            user_input=user_text, 
+            user_id=user_id, 
+            chat_history=short_term_history, 
+            context_memory=full_context,
+            send_status=send_status_update
+        )
+
+        # အလုပ်အကုန်ပြီးသွားရင် ကြားထဲက Status စာကြောင်းလေးကို ဖျက်ပစ်မယ် (မျက်စိရှင်းသွားအောင်)
+        if status_msg[0]:
+            try:
+                await status_msg[0].delete()
+            except Exception:
+                pass
         
         # 🔥 STEP C: ပြောပြီးသားတွေကို Database ထဲ ပြန်သိမ်းမယ်
-        memory_controller.add_chat_message(user_id, "user", user_text)      # User ပြောတာသိမ်း
-        memory_controller.add_chat_message(user_id, "model", response)     # Jarvis ဖြေတာသိမ်း
+        memory_controller.add_chat_message(user_id, "user", user_text)
+        memory_controller.add_chat_message(user_id, "model", response)
         
         # 5. အဖြေပြန်ပို့မယ်
         formatted_reply = format_response(response)

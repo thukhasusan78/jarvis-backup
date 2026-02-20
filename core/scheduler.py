@@ -4,6 +4,7 @@ from apscheduler.triggers.cron import CronTrigger
 import logging
 import os
 from config import Config
+import pytz
 from tasks.executor import run_scheduled_task 
 
 logger = logging.getLogger("JARVIS_SCHEDULER")
