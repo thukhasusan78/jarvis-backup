@@ -31,7 +31,7 @@ class JarvisAgent:
         logger.info(f"📩 User ({user_id}): {user_input}")
 
         current_task_context = user_input
-        max_loops = 5 # Tool အများဆုံး ၅ ခါ ဆက်တိုက်သုံးခွင့်ပေးမယ်
+        max_loops = 15 # Tool အများဆုံး 15 ခါ ဆက်တိုက်သုံးခွင့်ပေးမယ်
         loop_count = 0
 
         while loop_count < max_loops:
@@ -66,18 +66,30 @@ class JarvisAgent:
                 tool_args = dict(function_call.args)
                 logger.info(f"🛠️ Loop {loop_count}: Brain requires tool: {tool_name} | Args: {tool_args}")
                 
-                # 📡 Telegram သို့ လက်ရှိအခြေအနေ လှမ်းပို့ပေးမယ့် အပိုင်း
+                # 📡 Telegram Status Update (Professional English, No Emojis)
                 if send_status:
                     if tool_name == "search_web":
-                        await send_status("🔍 အင်တာနက်တွင် အချက်အလက် ရှာဖွေနေပါသည်...")
+                        query = tool_args.get("query", "data")
+                        await send_status(f"Searching web for: {query}...")
+                    elif tool_name == "manage_schedule":
+                        action = tool_args.get("action", "")
+                        task = tool_args.get("task_prompt", "task")
+                        if action == "add":
+                            await send_status(f"Scheduling task: {task}...")
+                        else:
+                            await send_status("Managing scheduled tasks...")
                     elif tool_name == "read_page_content":
-                        await send_status("📖 ဝဘ်ဆိုဒ်ကို ဝင်ရောက်ဖတ်ရှုနေပါသည်...")
+                        await send_status("Extracting page content...")
                     elif tool_name == "shell_exec":
-                        await send_status("💻 System Command ကို Run နေပါသည်...")
+                        await send_status("Executing system command...")
                     elif tool_name == "manage_knowledge":
-                        await send_status("🧠 Deep Memory တွင် မှတ်ဉာဏ် ရှာဖွေ/သိမ်းဆည်းနေပါသည်...")
+                        await send_status("Accessing deep memory...")
+                    elif tool_name == "manage_task":
+                        await send_status("Managing task queue...")
+                    elif tool_name == "check_resource":
+                        await send_status("Running system diagnostics...")
                     else:
-                        await send_status(f"⚙️ {tool_name} ကို အသုံးပြုနေပါသည်...")
+                        await send_status("Processing request...")
 
                 # Tool ကို Run မယ်
                 tool_result = await self._execute_tool(tool_name, tool_args)
