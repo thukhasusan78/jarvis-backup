@@ -60,5 +60,8 @@ class MemoryController:
     def search_knowledge(self, query: str, limit: int = 3) -> str:
         return self.vector.search_knowledge(query, limit)
 
+    def delete_knowledge(self, query: str) -> bool:
+        return self.vector.delete_knowledge(query)    
+
 # Singleton အနေနဲ့ ထုတ်ပေးထားမယ်
 memory_controller = MemoryController()
