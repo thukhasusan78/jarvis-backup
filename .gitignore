@@ -24,5 +24,6 @@ memory/jarvis_chat.db
 memory/jarvis_schedules.db
 memory/knowledge_lance/
 memory/browser_profile/
+memory/facebook_cookies.json
 custom_skills/
 workspace/
