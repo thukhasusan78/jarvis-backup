@@ -36,7 +36,7 @@ class JarvisAgent:
         logger.info(f"📩 User ({user_id}): {user_input}")
 
         current_task_context = user_input
-        max_loops = 20 # Tool အများဆုံး 20 ခါ ဆက်တိုက်သုံးခွင့်ပေးမယ်
+        max_loops = 15 # Tool အများဆုံး 15 ခါ ဆက်တိုက်သုံးခွင့်ပေးမယ်
         loop_count = 0
 
         while loop_count < max_loops:
