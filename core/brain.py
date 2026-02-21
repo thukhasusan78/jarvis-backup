@@ -16,7 +16,6 @@ class JarvisBrain:
         """
         Jarvis Brain Initialization
         """
-        self.role = role
         # 👈 FIX: Sysadmin ကို Coding သေချာရေးနိုင်ရန် Smart Model (Slow Brain) ချိတ်ပေးမည်
         if role == "sysadmin":
             self.model_name = Config.SMART_MODEL_NAME

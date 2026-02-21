@@ -1,2 +1,8 @@
-2026/02/20-15:07:09.489 2067 Creating DB /root/jarvis/memory/browser_profile/Default/Local Storage/leveldb since it was missing.
-2026/02/20-15:07:09.601 2067 Delete type=3 #1
+2026/02/21-14:21:00.814 a410 Recovering log #17
+2026/02/21-14:21:00.878 a410 Level-0 table #20: started
+2026/02/21-14:21:00.882 a410 Level-0 table #20: 355 bytes OK
+2026/02/21-14:21:00.888 a410 Delete type=3 #15
+2026/02/21-14:21:00.888 a410 Delete type=0 #17
+2026/02/21-15:57:01.485 a410 Level-0 table #23: started
+2026/02/21-15:57:01.488 a410 Level-0 table #23: 9027 bytes OK
+2026/02/21-15:57:01.489 a410 Delete type=0 #21
