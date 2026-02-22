@@ -5,7 +5,7 @@ import socket
 import logging
 from datetime import datetime
 import requests
-from config import Config  # ဆရာ့ရဲ့ config.py ကို တိုက်ရိုက်လှမ်းခေါ်မည်
+from config import Config 
 
 # Logger သတ်မှတ်ခြင်း
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [WATCHDOG] - %(message)s')
@@ -35,22 +35,22 @@ def recover_jarvis():
     logger.error("Jarvis is DOWN! Initiating recovery...")
 
     # ==========================================
-    # အဆင့် (၁): ရိုးရိုး Restart အရင်လုပ်ကြည့်မည် (Soft Recovery)
+    # အဆင့် (၁): ရိုးရိုး Restart အရင်လုပ်ကြည့်မည် (Soft Recovery) - ဤအဆင့်ကို အမြဲအရင်လုပ်မည်
     # ==========================================
+    logger.info("Attempting Soft Restart...")
     subprocess.run(["pkill", "-f", "python3 main.py"], stderr=subprocess.DEVNULL)
     time.sleep(2)
     
-    logger.info("Attempting Soft Restart...")
     subprocess.Popen("nohup python3 main.py > jarvis.log 2>&1 &", shell=True)
     time.sleep(10) # Jarvis အပြည့်အဝ နိုးလာရန် ၁၀ စက္ကန့်ခန့် အချိန်ပေးမည်
 
     if check_jarvis_health():
-        send_alert("✅ **[SOFT RECOVERY SUCCESSFUL]**\nJarvis ၏ နှလုံးခုန်သံ ရပ်တန့်သွားသဖြင့် ပုံမှန် Restart ပြုလုပ်၍ အသက်ပြန်သွင်းလိုက်ပါသည်။ (GitHub မှ ဆွဲချရန် မလိုခဲ့ပါ)")
+        send_alert("✅ **[SOFT RECOVERY SUCCESSFUL]**\nJarvis ၏ နှလုံးခုန်သံ ရပ်တန့်သွားသဖြင့် ပုံမှန် Restart ပြုလုပ်၍ အသက်ပြန်သွင်းလိုက်ပါသည်။ (GitHub မှ ဆွဲချရန် မလိုခဲ့ပါ၊ ဖိုင်များ လုံခြုံပါသည်)")
         logger.info("Soft Recovery Successful.")
         return
 
     # ==========================================
-    # အဆင့် (၂): Code Error ကြောင့်ဆိုလျှင် GitHub မှ ဆွဲချမည် (Hard Recovery)
+    # အဆင့် (၂): Soft Restart လုံးဝ မရတော့မှသာ GitHub မှ ဆွဲချမည် (Hard Recovery)
     # ==========================================
     send_alert("🚨 **[HARD RECOVERY INITIATED]**\nJarvis ကို ပုံမှန် Restart လုပ်၍မရပါ။ Code Error ကြောင့်ဟု ယူဆရသဖြင့် GitHub မှ Stable Version ကို ဆွဲချပြီး အသက်ပြန်သွင်းနေပါသည်...")
     logger.warning("Soft restart failed. Executing Git Hard Reset...")
@@ -61,7 +61,7 @@ def recover_jarvis():
         subprocess.run(["git", "clean", "-fd"], check=True)
 
         logger.info("Restarting Jarvis after Hard Reset...")
-        subprocess.Popen("nohup python3 main.py > jarv.log 2>&1 &", shell=True)
+        subprocess.Popen("nohup python3 main.py > jarvis.log 2>&1 &", shell=True)
         time.sleep(10)
 
         if check_jarvis_health():
@@ -76,11 +76,12 @@ def recover_jarvis():
 
 def cleanup_logs():
     """ညသန်းခေါင်ယံ Log ရှင်းလင်းရေး (နောက်ဆုံး လိုင်း ၁၀၀၀ သာ ချန်မည်)"""
-    logs_to_clean = ["jarvis.log", "server.log"]
+    # ဆရာတောင်းဆိုထားသော Log ၃ ခုလုံး ပါဝင်သည်
+    logs_to_clean = ["jarvis.log", "server.log", "watchdog.log"]
     for log_file in logs_to_clean:
         if os.path.exists(log_file):
             os.system(f"tail -n 1000 {log_file} > {log_file}.tmp && mv {log_file}.tmp {log_file}")
-    logger.info("Log cleanup completed.")
+    logger.info("Log cleanup completed for jarvis.log, server.log, and watchdog.log.")
 
 # ================= MAIN LOOP =================
 logger.info("🛡️ Supervisor Watchdog Started. Guarding Jarvis 24/7...")
@@ -97,7 +98,7 @@ while True:
 
     if current_time.hour == 0 and last_cleanup_date != current_date:
         cleanup_logs()
-        send_alert("🧹 **[SYSTEM MAINTENANCE]**\nညသန်းခေါင်ယံ Log Cleanup အောင်မြင်စွာ ပြီးစီးပါပြီ။ Disk Space ကို ရှင်းလင်းပေးလိုက်ပါပြီ ဆရာ။")
+        send_alert("🧹 **[SYSTEM MAINTENANCE]**\nညသန်းခေါင်ယံ Log Cleanup အောင်မြင်စွာ ပြီးစီးပါပြီ။ jarvis.log, server.log နှင့် watchdog.log တို့ကို ရှင်းလင်းပေးလိုက်ပါပြီ ဆရာ။")
         last_cleanup_date = current_date
 
     time.sleep(30)
