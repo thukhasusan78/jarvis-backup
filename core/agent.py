@@ -38,8 +38,26 @@ class JarvisAgent:
         current_task_context = user_input
         max_loops = 15 # Tool အများဆုံး 15 ခါ ဆက်တိုက်သုံးခွင့်ပေးမယ်
         loop_count = 0
+        retry_count = 0
+        max_retries = 3 # အများဆုံး ၃ ခါ (၁၀ မိနစ်စီခြားပြီး) ပြန်ကြိုးစားမည်
 
-        while loop_count < max_loops:
+        while True:
+            # 🔄 10-MINUTE DELAYED AUTO-RETRY SYSTEM
+            if loop_count >= max_loops:
+                if retry_count < max_retries:
+                    retry_count += 1
+                    loop_count = 0 # Loop ကို သုညက ပြန်စမည်
+                    if send_status:
+                        await send_status(f"⏳ အဆင့်များနေသဖြင့် API Limit မထိစေရန် ၁၀ မိနစ် ခဏနားနေပါသည်။ (Auto-Retry {retry_count}/{max_retries})...")
+                    logger.warning(f"Max loops reached. Taking a 10-minute break. (Retry {retry_count})")
+                    await asyncio.sleep(600) # ၁၀ မိနစ် (စက္ကန့် ၆၀၀) ရပ်နားမည်
+                    
+                    # AI ကိုယ်တိုင် နားနေခဲ့မှန်း သိအောင် မှတ်ဉာဏ်ထဲ ထည့်ပေးမည်
+                    current_task_context += f"\n\n[SYSTEM: Took a 10-minute break to avoid API rate limits. Resuming execution (Retry {retry_count}).]\n"
+                    continue
+                else:
+                    return "ခိုင်းစေထားသော အလုပ်မှာ အဆင့်များလွန်းသဖြင့် အပြီးတိုင် ရပ်နားလိုက်ပါသည်။"
+
             loop_count += 1
             try:
                 # --- THINK ---
@@ -124,7 +142,7 @@ class JarvisAgent:
                 logger.error(f"❌ Critical Error in Loop: {e}")
                 return f"System Error: {str(e)}"
                 
-        return "ခိုင်းစေထားသော အလုပ်မှာ အဆင့်များလွန်းသဖြင့် ရပ်နားလိုက်ပါသည်။"
+        return "ခိုင်းစေထားသော အလုပ်မှာ အဆင့်များလွန်းသဖြင့် ခဏနေမှ ပြန်လည်ကြိုးစားပါမည်။"
 
     def _is_error(self, result: str) -> bool:
         error_signals = ["STDERR", "Error:", "Traceback", "Exception", "TIMEOUT ALERT", "SAFETY ALERT", "command not found"]

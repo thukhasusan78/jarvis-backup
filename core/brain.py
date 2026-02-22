@@ -17,7 +17,7 @@ class JarvisBrain:
         Jarvis Brain Initialization
         """
         # 🧠 FIX: Sysadmin နဲ့ Planner ကို Smart Model (Gemini 3 Pro) သုံးခိုင်းမယ်
-        if role in ["sysadmin", "planner", "researcher", "coder", "qa_tester"]:
+        if role in ["sysadmin", "planner", "researcher", "coder", "qa_tester", "frontend_coder"]:
             self.model_name = Config.SMART_MODEL_NAME
         else:
             self.model_name = Config.MODEL_NAME

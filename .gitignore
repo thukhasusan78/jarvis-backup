@@ -28,3 +28,4 @@ memory/facebook_cookies.json
 custom_skills/
 workspace/
 *.md
+cloudflared.deb
