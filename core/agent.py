@@ -43,7 +43,7 @@ class JarvisAgent:
             loop_count += 1
             try:
                 # --- THINK ---
-                response = self.brain.think(current_task_context, chat_history, context_memory)
+                response = await asyncio.to_thread(self.brain.think, current_task_context, chat_history, context_memory)
 
                 # 🔥 FIX: Brain က API Object အစား စာသား (String) ပြန်ပို့လိုက်ရင် Crash မဖြစ်အောင် ကာကွယ်မယ်
                 if isinstance(response, str):

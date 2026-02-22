@@ -14,7 +14,12 @@ class Config:
     # ငွေရှာမယ့် Agent ဖြစ်လို့ အမြန်ဆုံးနဲ့ စရိတ်အသက်သာဆုံး Model ကို သုံးမယ်
     MODEL_NAME = "gemini-2.5-flash" 
 
-    SMART_MODEL_NAME = "gemini-3-flash-preview"
+    SMART_MODEL_NAME = "gemini-3-flash-preview" # Orbit ရဲ့ 3 Pro ကို သုံးမယ်
+    
+    # --- 🌌 Orbit Provider API Settings ---
+    ORBIT_API_KEY = os.getenv("ORBIT_API_KEY") 
+    QA_MODEL_NAME = "gemini-claude-opus-4-6-thinking"
+    ORBIT_BASE_URL = "https://api.orbit-provider.com/cliproxy-api/api/provider/agy"
     
     # API Keys Management (Round Robin System)
     _keys_str = os.getenv("GEMINI_API_KEYS", "")

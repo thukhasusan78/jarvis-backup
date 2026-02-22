@@ -16,8 +16,8 @@ class JarvisBrain:
         """
         Jarvis Brain Initialization
         """
-        # 👈 FIX: Sysadmin ကို Coding သေချာရေးနိုင်ရန် Smart Model (Slow Brain) ချိတ်ပေးမည်
-        if role == "sysadmin":
+        # 🧠 FIX: Sysadmin နဲ့ Planner ကို Smart Model (Gemini 3 Pro) သုံးခိုင်းမယ်
+        if role in ["sysadmin", "planner", "researcher", "coder", "qa_tester"]:
             self.model_name = Config.SMART_MODEL_NAME
         else:
             self.model_name = Config.MODEL_NAME
@@ -37,8 +37,24 @@ class JarvisBrain:
 
     def _get_client(self):
         """Round-Robin Key Rotation: Get a client with the next available key"""
+        
+        # 🚀 FIX: Orbit Proxy က နားလည်အောင် Authorization Header ကို အတင်းတပ်ပေးလိုက်ခြင်း
+        #if self.role in ["sysadmin", "planner"] and hasattr(Config, "ORBIT_API_KEY"):
+            #logger.info(f"Using ORBIT API Key for {self.role.upper()} (Gemini 3 Pro)")
+            #return genai.Client(
+                #api_key=Config.ORBIT_API_KEY, 
+                #http_options={
+                    #'base_url': Config.ORBIT_BASE_URL,
+                    #'headers': {
+                        #'Authorization': f'Bearer {Config.ORBIT_API_KEY}',
+                        #'X-API-Key': Config.ORBIT_API_KEY
+                    #}
+               #}
+            #)
+            
+        # ကျန်တဲ့ Agent (ဥပမာ- CEO) တွေကတော့ မူလ .env ထဲက Key အဟောင်းတွေကိုပဲ လှည့်သုံးမယ်
         api_key = Config.get_next_api_key()
-        logger.info(f"Using API Key ending in: ...{api_key[-4:]}")
+        logger.info(f"Using Standard API Key ending in: ...{api_key[-4:]}")
         return genai.Client(api_key=api_key)
 
     def think(self, user_input, chat_history=[], context_memory=""):
