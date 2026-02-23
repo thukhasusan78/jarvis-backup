@@ -25,7 +25,7 @@ def send_alert(message):
 def check_jarvis_health():
     """Port 8000 တွင် Jarvis အသက်ရှင်ခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း"""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(2)
+    sock.settimeout(10)
     result = sock.connect_ex(('127.0.0.1', Config.PORT))
     sock.close()
     return result == 0 
@@ -41,7 +41,7 @@ def recover_jarvis():
     subprocess.run(["pkill", "-f", "python3 main.py"], stderr=subprocess.DEVNULL)
     time.sleep(2)
     
-    subprocess.Popen("nohup python3 main.py > jarvis.log 2>&1 &", shell=True)
+    subprocess.Popen("nohup venv/bin/python main.py >> jarvis.log 2>&1 &", shell=True)
     time.sleep(10) # Jarvis အပြည့်အဝ နိုးလာရန် ၁၀ စက္ကန့်ခန့် အချိန်ပေးမည်
 
     if check_jarvis_health():
@@ -61,7 +61,7 @@ def recover_jarvis():
         subprocess.run(["git", "clean", "-fd"], check=True)
 
         logger.info("Restarting Jarvis after Hard Reset...")
-        subprocess.Popen("nohup python3 main.py > jarvis.log 2>&1 &", shell=True)
+        subprocess.Popen("nohup venv/bin/python main.py >> jarvis.log 2>&1 &", shell=True)
         time.sleep(10)
 
         if check_jarvis_health():
