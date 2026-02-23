@@ -77,10 +77,10 @@ def recover_jarvis():
 def cleanup_logs():
     """ညသန်းခေါင်ယံ Log ရှင်းလင်းရေး (နောက်ဆုံး လိုင်း ၁၀၀၀ သာ ချန်မည်)"""
     # ဆရာတောင်းဆိုထားသော Log ၃ ခုလုံး ပါဝင်သည်
-    logs_to_clean = ["jarvis.log", "server.log", "watchdog.log"]
+    logs_to_clean = ["jarvis.log", "server.log", "watchdog.log", "messenger_automation.log"]
     for log_file in logs_to_clean:
         if os.path.exists(log_file):
-            os.system(f"tail -n 1000 {log_file} > {log_file}.tmp && mv {log_file}.tmp {log_file}")
+            os.system(f"tail -n 800 {log_file} > {log_file}.tmp && mv {log_file}.tmp {log_file}")
     logger.info("Log cleanup completed for jarvis.log, server.log, and watchdog.log.")
 
 # ================= MAIN LOOP =================

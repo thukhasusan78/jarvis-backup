@@ -40,6 +40,10 @@ class JarvisAgent:
         loop_count = 0
         retry_count = 0
         max_retries = 3 # အများဆုံး ၃ ခါ (၁၀ မိနစ်စီခြားပြီး) ပြန်ကြိုးစားမည်
+        # 🔥 ANTI-LOOP PROTOCOL VARIABLES
+        last_tool_name = None
+        last_tool_args_str = None
+        repeat_count = 0
 
         while True:
             # 🔄 10-MINUTE DELAYED AUTO-RETRY SYSTEM
@@ -88,6 +92,22 @@ class JarvisAgent:
                 tool_name = function_call.name
                 tool_args = dict(function_call.args)
                 logger.info(f"🛠️ Loop {loop_count}: Brain requires tool: {tool_name} | Args: {tool_args}")
+                # 🔥 ANTI-LOOP PROTOCOL (ခေါင်းမူးပြီး ထပ်ခါထပ်ခါ လုပ်နေတာကို ဖြတ်ရိုက်မည့်စနစ်)
+                current_args_str = str(tool_args)
+                if tool_name == last_tool_name and current_args_str == last_tool_args_str:
+                    repeat_count += 1
+                else:
+                    repeat_count = 0
+                    last_tool_name = tool_name
+                    last_tool_args_str = current_args_str
+
+                if repeat_count >= 2:
+                    logger.warning(f"🛑 [ANTI-LOOP TRIGGERED] Blocked repeated action: {tool_name}")
+                    warning_msg = f"⚠️ SYSTEM WARNING: You have executed this EXACT SAME action multiple times. It is either looping or already completed. YOU MUST IMMEDIATELY STOP USING THIS EXACT COMMAND AND MOVE TO THE NEXT STEP IN YOUR PLAN!"
+                    current_task_context += f"\n\n[SYSTEM: Tool '{tool_name}' blocked. Output:\n{warning_msg}]\n"
+                    if send_status:
+                        await send_status("🛑 လုပ်ဆောင်ချက် ထပ်နေသဖြင့် အလိုအလျောက် ကျော်ဖြတ်နေပါသည်...")
+                    continue # Tool ကို တကယ်မ Run တော့ဘဲ နောက်တစ်ဆင့်ကို အတင်းကူးခိုင်းမည်
                 
                 # 📡 Telegram Status Update (Professional English, No Emojis)
                 if send_status:
