@@ -120,6 +120,10 @@ class JarvisAgent:
                 # 🔥 ပြင်ဆင်ချက်: Output အလွတ်ဖြစ်နေရင် အောင်မြင်ကြောင်း AI ကို သေချာပြောပြရန်
                 if not tool_result or str(tool_result).strip() == "":
                     tool_result = "[Success] Command executed silently with no errors."
+
+                # 🔥 FORCE BREAK FOR FRONTEND CODER (အဆုံးမဲ့ Loop ကို အတင်းဖြတ်မည့်နေရာ)
+                if tool_name == "manage_file" and tool_args.get("action") == "write" and self.role == "frontend_coder":
+                    return "✅ Sir, the UI prototype is ready. Please check the frontend folder."    
                 
                 # --- SELF-CORRECTION LOOP (For Shell) ---
                 if tool_name == "shell_exec" and self._is_error(tool_result):
