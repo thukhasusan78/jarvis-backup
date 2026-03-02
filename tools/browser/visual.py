@@ -1,4 +1,5 @@
 import os
+import asyncio
 import base64
 import logging
 from typing import Dict, List
@@ -70,11 +71,18 @@ class VisualTool(BaseTool):
                 ]
             )
 
-            # နေရာမယူစေရန် Screenshot ဖိုင်ကို ချက်ချင်း ပြန်ဖျက်ခြင်း
-            if os.path.exists(screenshot_path):
-                os.remove(screenshot_path)
+            # နေရာမယူစေရန် Screenshot ဖိုင်ကို စက္ကန့် ၆၀ နေမှ နောက်ကွယ်ကနေ ဖျက်ခြင်း (Telegram ပို့ချိန်ရအောင်)
+            async def delete_later(path, delay=60):
+                await asyncio.sleep(delay)
+                if os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+            
+            asyncio.create_task(delete_later(screenshot_path))
 
-            return f"Vision Analysis Result:\n{response.text}"
+            return f"Screenshot saved temporarily at: {screenshot_path}\n\nVision Analysis Result:\n{response.text}"
 
         except Exception as e:
             logger.error(f"Visual Tool Error: {e}")

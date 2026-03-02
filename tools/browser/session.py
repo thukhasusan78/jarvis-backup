@@ -37,39 +37,36 @@ class BrowserManager:
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             )
 
-            # --- 🍪 COOKIE INJECTION (SECURE MODE) ---
-            # Hardcode မလုပ်ဘဲ memory အောက်က ဖိုင်ကိုပဲ လှမ်းဖတ်ပါမယ်
-            cookie_path = os.path.abspath(os.path.join("memory", "facebook_cookies.json"))
-            if os.path.exists(cookie_path):
-                try:
-                    with open(cookie_path, "r", encoding="utf-8") as f:
-                        cookies = json.load(f)
-                        
-                        # 🔥 FIX: Playwright လက်မခံတဲ့ Cookie Format တွေကို အလိုလို ပြင်ဆင်ပေးခြင်း
-                        for cookie in cookies:
-                            if "sameSite" in cookie:
-                                # တန်ဖိုးက null (None) ဖြစ်နေရင် အဲ့ဒီ key ကို ဖျက်ပစ်မယ်
-                                if cookie["sameSite"] is None:
-                                    del cookie["sameSite"]
+        # --- 🍪 AGGRESSIVE COOKIE INJECTION (FORCE INJECT EVERY TIME) ---
+        # Browser ရှိပြီးသားဖြစ်နေရင်တောင် Cookie ကို အတင်းပြန်ထည့်မည်
+        cookie_path = os.path.abspath(os.path.join("memory", "facebook_cookies.json"))
+        if os.path.exists(cookie_path):
+            try:
+                with open(cookie_path, "r", encoding="utf-8") as f:
+                    cookies = json.load(f)
+                    
+                    for cookie in cookies:
+                        if "sameSite" in cookie:
+                            if cookie["sameSite"] is None:
+                                del cookie["sameSite"]
+                            else:
+                                val = str(cookie["sameSite"]).lower()
+                                if val in ["strict", "lax", "none"]:
+                                    cookie["sameSite"] = val.capitalize() 
+                                elif val == "no_restriction":
+                                    cookie["sameSite"] = "None"
                                 else:
-                                    val = str(cookie["sameSite"]).lower()
-                                    if val in ["strict", "lax", "none"]:
-                                        cookie["sameSite"] = val.capitalize() # အစစာလုံး အကြီးပြောင်းမယ်
-                                    elif val == "no_restriction":
-                                        cookie["sameSite"] = "None"
-                                    else:
-                                        del cookie["sameSite"]  # နားမလည်တဲ့ စာလုံးဖြစ်နေရင် ဖျက်ပစ်မယ်
-                            
-                            # Extension က ပိုထည့်ပေးလိုက်တဲ့ မလိုအပ်တဲ့ Data တွေကို ဖယ်ရှားမယ်
-                            for key in ["hostOnly", "session", "storeId"]:
-                                cookie.pop(key, None)
+                                    del cookie["sameSite"]  
+                        
+                        for key in ["hostOnly", "session", "storeId"]:
+                            cookie.pop(key, None)
 
-                        # သန့်စင်သွားတဲ့ Cookie တွေကို Browser ထဲ ထည့်မယ်
-                        await cls._context.add_cookies(cookies)
-                        logger.info("🍪 Secure Facebook Cookies injected successfully!")
-                except Exception as e:
-                    logger.error(f"Failed to load cookies: {e}")
-            # -----------------------------------------
+                    await cls._context.add_cookies(cookies)
+                    # Log တွေ အရမ်းရှုပ်မနေအောင် ဖြုတ်ထားလိုက်သည်
+                    # logger.info("🍪 Secure Facebook Cookies injected aggressively!")
+            except Exception as e:
+                logger.error(f"Failed to load cookies: {e}")
+        # -----------------------------------------
 
         return cls._context
 

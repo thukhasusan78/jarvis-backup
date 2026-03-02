@@ -77,12 +77,19 @@ class JarvisAgent:
                         return f"အလုပ်လုပ်ဆောင်နေစဉ် အခက်အခဲဖြစ်သွားပါသည်။ (Error: {response})"
 
                 function_call = None
-                # 🔥 FIX: hasattr သုံးပြီး candidates ရှိမှသာ ဆက်အလုပ်လုပ်အောင် ကာကွယ်မယ်
-                if hasattr(response, 'candidates') and response.candidates and response.candidates[0].content.parts:
-                    for part in response.candidates[0].content.parts:
-                        if part.function_call:
-                            function_call = part.function_call
-                            break
+                # 🔥 FIX: Safety Block ကြောင့် content က None ဖြစ်နေရင် Crash မဖြစ်အောင် ကာကွယ်မယ်
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    # Content မရှိရင် Safety ကြောင့် ပိတ်ခံရတာလို့ မှတ်ယူပြီး AI ကို သတိပေးမယ်
+                    if not candidate.content:
+                        logger.warning(f"⚠️ Response Blocked by Safety Filters. Finish Reason: {candidate.finish_reason}")
+                        return "ဆရာ၊ ထို Website သို့မဟုတ် ပုံတွင် Sensitive ဖြစ်သော အကြောင်းအရာများ ပါဝင်နေသဖြင့် AI Safety Filter မှ ပိတ်ပင်လိုက်ပါသည်။"
+                        
+                    if candidate.content.parts:
+                        for part in candidate.content.parts:
+                            if part.function_call:
+                                function_call = part.function_call
+                                break
 
                 # --- CASE A: Direct Text Response (Tool သုံးစရာ မလိုတော့ရင် အဖြေထုတ်ပေးမယ်) ---
                 if not function_call:
@@ -174,7 +181,7 @@ class JarvisAgent:
 
     def _extract_text(self, response):
         text_parts = []
-        if response.candidates and response.candidates[0].content.parts:
+        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
             for part in response.candidates[0].content.parts:
                 if part.text:
                     text_parts.append(part.text)
