@@ -1,6 +1,8 @@
 import logging
 from core.agent import JarvisAgent
 from memory.memory_controller import memory_controller
+import asyncio
+from memory.memory_extractor import extract_and_store_memory
 
 logger = logging.getLogger("CHAT_HANDLER")
 agent = None
@@ -30,6 +32,10 @@ async def process_user_message(user_id: int, user_text: str, status_callback=Non
         memory_controller.add_chat_message(user_id, "user", user_text)
         memory_controller.add_chat_message(user_id, "model", response)
 
+        # --- THE FIRE AND FORGET MEMORY ENGINE TRIGGER ---
+        asyncio.create_task(extract_and_store_memory(user_id, user_text, response))
+        # -------------------------------------------------
+        
         return response
         
     except Exception as e:
