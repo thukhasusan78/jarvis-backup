@@ -4,6 +4,7 @@ import subprocess
 import socket
 import logging
 from datetime import datetime
+import psutil
 import requests
 from config import Config 
 
@@ -84,21 +85,52 @@ def cleanup_logs():
     logger.info("Log cleanup completed for jarvis.log, server.log, and watchdog.log.")
 
 # ================= MAIN LOOP =================
-logger.info("🛡️ Supervisor Watchdog Started. Guarding Jarvis 24/7...")
+logger.info("Supervisor Watchdog Started. Guarding Jarvis 24/7...")
 last_cleanup_date = None
+high_load_counter = 0  # CPU/RAM တက်နေတဲ့ အကြိမ်ရေကို မှတ်ရန်
 
 while True:
-    # 1. Health Monitoring (စက္ကန့် ၃၀ လျှင် တစ်ခါ စစ်ဆေးမည်)
+    # 1. Health Monitoring (Jarvis သေသွားရင် ပြန်နှိုးမည်)
     if not check_jarvis_health():
         recover_jarvis()
 
-    # 2. Daily Log Cleanup (config.py ထဲမှ Timezone အတိုင်း စစ်ဆေးမည်)
+    # 2. Proactive Environmental Awareness (Background Monitoring)
+    try:
+        # ၁ စက္ကန့်စာ CPU ကို ဖတ်မည်
+        current_cpu = psutil.cpu_percent(interval=1)
+        current_ram = psutil.virtual_memory().percent
+        
+        # CPU 85% သို့မဟုတ် RAM 90% ကျော်နေပါက
+        if current_cpu > 85 or current_ram > 90:
+            high_load_counter += 1
+            # ၆ ကြိမ် (၆ * ၃၀ စက္ကန့် = ၃ မိနစ်) ဆက်တိုက် ဖြစ်နေမှ Alert ပို့မည် (ခဏလေး တက်တာကို မပို့အောင်)
+            if high_load_counter >= 6:
+                alert_msg = f"**[SYSTEM ALERT: HIGH RESOURCE USAGE]**\n"
+                alert_msg += f"Sir, Server တွင် ဝန်ပိနေပုံရပါသည်။\n"
+                alert_msg += f"CPU Usage: {current_cpu}%\n"
+                alert_msg += f"RAM Usage: {current_ram}%\n\n"
+                alert_msg += f"`check_resource` tool ကိုသုံးပြီး စစ်ဆေးခိုင်းနိုင်ပါသည်။ သို့မဟုတ် ပြဿနာရှာရန် ကျွန်တော့်ကို အမိန့်ပေးပါ။"
+                
+                send_alert(alert_msg)
+                logger.warning(f"High Load Detected! CPU: {current_cpu}%, RAM: {current_ram}%")
+                
+                # Alert ပို့ပြီးပါက နောက်ထပ် ၁၅ မိနစ် (အကြိမ် ၃၀) နေမှ ထပ်စစ်ရန် Reset ချမည် (Alert တွေ ဆက်တိုက်မဝင်အောင်)
+                high_load_counter = -30 
+        else:
+            # ပုံမှန် ပြန်ဖြစ်သွားရင် Counter ပြန်စမည်
+            if high_load_counter > 0:
+                high_load_counter = 0
+                
+    except Exception as e:
+        logger.error(f"Resource Monitoring Error: {e}")
+
+    # 3. Daily Log Cleanup
     current_time = datetime.now(Config.TIMEZONE)
     current_date = current_time.date()
 
     if current_time.hour == 0 and last_cleanup_date != current_date:
         cleanup_logs()
-        send_alert("🧹 **[SYSTEM MAINTENANCE]**\nညသန်းခေါင်ယံ Log Cleanup အောင်မြင်စွာ ပြီးစီးပါပြီ။ jarvis.log, server.log နှင့် watchdog.log တို့ကို ရှင်းလင်းပေးလိုက်ပါပြီ ဆရာ။")
+        send_alert("**[SYSTEM MAINTENANCE]**\nညသန်းခေါင်ယံ Log Cleanup အောင်မြင်စွာ ပြီးစီးပါပြီ။")
         last_cleanup_date = current_date
 
     time.sleep(30)
