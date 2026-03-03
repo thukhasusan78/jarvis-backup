@@ -11,7 +11,7 @@ logger = logging.getLogger("JARVIS_SHELL")
 
 PROTECTED_ITEMS = [
     "core", "tools", "memory", "interfaces", "main.py", "config.py", 
-    "tasks", "venv", ".env", ".git", "/etc", "/boot", "/bin"
+    "tasks", "venv", ".env", ".git", "/etc", "/boot", "/bin", "supervisor.py"
 ]
 
 class ShellTool(BaseTool):

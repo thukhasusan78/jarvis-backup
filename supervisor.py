@@ -7,6 +7,8 @@ from datetime import datetime
 import psutil
 import requests
 from config import Config 
+import re
+import subprocess
 
 # Logger သတ်မှတ်ခြင်း
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [WATCHDOG] - %(message)s')
@@ -84,6 +86,49 @@ def cleanup_logs():
             os.system(f"tail -n 800 {log_file} > {log_file}.tmp && mv {log_file}.tmp {log_file}")
     logger.info("Log cleanup completed for jarvis.log, server.log, and watchdog.log.")
 
+# --- 🛡️ THE WATCHTOWER: INTRUSION DETECTION SYSTEM ---
+alerted_ips = set() # သတိပေးပြီးသား IP တွေကို မှတ်ထားရန်
+
+def check_intrusions():
+    """SSH မှတစ်ဆင့် Password အကြိမ်ကြိမ်မှားပြီး ဝင်ရောက်ရန် ကြိုးစားနေသူများကို စစ်ဆေးခြင်း"""
+    global alerted_ips
+    try:
+        # Ubuntu/Debian တွင် SSH log များသည် auth.log တွင် ရှိသည်
+        log_file = "/var/log/auth.log"
+        if not os.path.exists(log_file):
+            return
+        
+        # နောက်ဆုံး လိုင်း ၁၀၀ ကို ဖတ်မည်
+        result = subprocess.run(['tail', '-n', '100', log_file], capture_output=True, text=True)
+        logs = result.stdout
+        
+        # 'Failed password' စာသားပါသော လိုင်းများမှ IP များကို ဆွဲထုတ်မည်
+        failed_ips = re.findall(r"Failed password for .* from ([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", logs)
+        
+        # IP တစ်ခုချင်းစီ ဘယ်နှစ်ခါ မှားလဲ ရေတွက်မည်
+        ip_counts = {}
+        for ip in failed_ips:
+            ip_counts[ip] = ip_counts.get(ip, 0) + 1
+            
+        # ၅ ခါထက် ပိုမှားနေသော IP များကို Report တင်မည်
+        for ip, count in ip_counts.items():
+            if count >= 5 and ip not in alerted_ips:
+                alert_msg = f"🚨 **[SECURITY ALERT: BRUTE-FORCE DETECTED]**\n"
+                alert_msg += f"ဆရာ၊ တစ်စုံတစ်ယောက်က Server ကို SSH မှတစ်ဆင့် ဖောက်ဝင်ရန် ကြိုးစားနေပါသည်။\n\n"
+                alert_msg += f"Hacker IP: `{ip}`\n"
+                alert_msg += f"Failed Attempts: {count} times (in recent logs)\n\n"
+                alert_msg += f"`shell_exec` ကိုသုံး၍ `ufw deny from {ip}` ဟုရိုက်ကာ ချက်ချင်း Block လိုက်ပါ။"
+                
+                send_alert(alert_msg)
+                logger.warning(f"Intrusion Alert Sent for IP: {ip}")
+                
+                # ထပ်ခါထပ်ခါ စာမပို့အောင် မှတ်ထားမည်
+                alerted_ips.add(ip)
+                
+    except Exception as e:
+        logger.error(f"Intrusion Detection Error: {e}")
+# ----------------------------------------------------    
+
 # ================= MAIN LOOP =================
 logger.info("Supervisor Watchdog Started. Guarding Jarvis 24/7...")
 last_cleanup_date = None
@@ -124,7 +169,10 @@ while True:
     except Exception as e:
         logger.error(f"Resource Monitoring Error: {e}")
 
-    # 3. Daily Log Cleanup
+    # 3. Security Monitoring (Hacker များ ဝင်ရန်ကြိုးစားမှု ရှိမရှိ စစ်ဆေးမည်)
+    check_intrusions()    
+
+    # 4. Daily Log Cleanup
     current_time = datetime.now(Config.TIMEZONE)
     current_date = current_time.date()
 

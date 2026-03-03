@@ -25,11 +25,11 @@ if lancedb:
         class _Schema(LanceModel):
             id: str
             category: str           
-            task_or_query: str = embed_fn.SourceField()  
+            search_text: str = embed_fn.SourceField()  # အကုန်ပေါင်းမှတ်မည့် Field
+            task_or_query: str
             solution: str           
             code_snippet: str       
             timestamp: str
-            # Vector Size ကို Error မတက်အောင် 384 ဟု အသေသတ်မှတ်ထားသည်
             vector: Vector(384) = embed_fn.VectorField() 
         KnowledgeSchema = _Schema
     except Exception as e:
@@ -39,13 +39,13 @@ if lancedb:
 class VectorStorage:
     def __init__(self):
         self.db_path = os.path.abspath(Config.VECTOR_DB_PATH)
-        self.table_name = "jarvis_knowledge"
+        self.table_name = "jarvis_knowledge_v3" # Schema အသစ်မို့ Table နာမည်ပြောင်းထားသည်
         self.table = None
         
         if lancedb and KnowledgeSchema:
             self._init_db()
         else:
-            print("⚠️ Vector DB ကို ပိတ်ထားပါသည်။ (Library အခက်အခဲရှိသည်)")
+            print("⚠️ Vector DB ကို ပိတ်ထားပါသည်။")
 
     def _init_db(self):
         try:
@@ -64,9 +64,7 @@ class VectorStorage:
             return False
 
     def save_knowledge(self, category: str, task: str, solution: str, code_snippet: str = ""):
-        # Table မရှိရင် Auto-Reconnect ပြန်လုပ်မယ့်စနစ် (Bullet-proof)
         if self.table is None:
-            print("⚠️ self.table is None. Retrying to connect to Vector DB...")
             if lancedb and KnowledgeSchema:
                 self._init_db()
             
@@ -76,9 +74,13 @@ class VectorStorage:
         
         try:
             import uuid
+            # Problem ရော Solution ပါ ပေါင်းထည့်မည် (Search လုပ်ရ လွယ်အောင်)
+            combined_text = f"Problem: {task}\nSolution: {solution}\nCode: {code_snippet}"
+            
             data = [{
                 "id": uuid.uuid4().hex,
                 "category": category,
+                "search_text": combined_text,
                 "task_or_query": task,
                 "solution": solution,
                 "code_snippet": code_snippet,
@@ -92,7 +94,6 @@ class VectorStorage:
             return False
 
     def search_knowledge(self, query: str, limit: int = 3):
-        # ရှာတဲ့အချိန်မှာလည်း Table မရှိရင် ပြန်ချိတ်မယ်
         if self.table is None:
             if lancedb and KnowledgeSchema:
                 self._init_db()
@@ -105,8 +106,14 @@ class VectorStorage:
             if not results: return ""
             
             memory_text = "🧠 [JARVIS PAST EXPERIENCE & KNOWLEDGE]:\n"
+            found_relevant = False
+            
             for res in results:
-                if res.get('_distance', 1.0) < 1.2:  
+                distance = res.get('_distance', 1.0)
+                # 🔥 TONY STARK FIX: Distance ၁.၁ ထက်ငယ်မှ (တကယ်ဆိုင်မှ) ယူမည်။ 
+                # (မဆိုင်တာတွေ ဆွဲမထုတ်လာအောင် တားထားခြင်း)
+                if distance < 1.1:  
+                    found_relevant = True
                     cat = res['category']
                     task = res['task_or_query']
                     sol = res['solution']
@@ -114,6 +121,10 @@ class VectorStorage:
                     
                     memory_text += f"\n[{cat}] Situation/Query: {task}\nAction/Fact: {sol}\n"
                     if code: memory_text += f"Code Snippet:\n```\n{code}\n```\n"
+            
+            # တကယ်ဆိုင်တဲ့ အချက်အလက် မတွေ့ရင် ဘာမှမပို့ဘူး
+            if not found_relevant:
+                return ""
                         
             return memory_text.strip()
         except Exception as e:
@@ -123,11 +134,9 @@ class VectorStorage:
     def delete_knowledge(self, search_query: str):
         if self.table is None: return False
         try:
-            # အရင်ဆုံး ဖျက်ချင်တဲ့ အကြောင်းအရာကို ရှာမယ်
             results = self.table.search(search_query).limit(1).to_list()
-            if results and results[0].get('_distance', 1.0) < 1.0:
+            if results and results[0].get('_distance', 1.0) < 1.1:
                 target_id = results[0]['id']
-                # တွေ့ရင် အဲ့ဒီ ID ကို တိတိကျကျ ဖျက်မယ်
                 self.table.delete(f"id = '{target_id}'")
                 print(f"🗑️ Knowledge deleted successfully for: {search_query}")
                 return True
