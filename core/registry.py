@@ -68,7 +68,10 @@ class ToolRegistry:
                     else:
                         assigned_role = "sysadmin"
                 elif "tools.web" in module:
-                    assigned_role = "researcher"
+                    if role in ["researcher", "deep_researcher"]:
+                        assigned_role = role
+                    else:
+                        assigned_role = "researcher"
                 elif "tools.memory" in module:
                     assigned_role = "ceo"
                 elif "custom_skills" in module:

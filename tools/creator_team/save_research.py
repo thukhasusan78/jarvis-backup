@@ -2,7 +2,6 @@ import os
 import logging
 from typing import Dict, List
 from google.genai import types
-
 from tools.base import BaseTool
 
 logger = logging.getLogger("JARVIS_CREATOR_TEAM")
@@ -13,13 +12,13 @@ class SaveResearchTool(BaseTool):
     """
     name = "save_research_brief"
     description = "Save the final synthesized research brief into a markdown file so the Writer Agent can use it later."
-    owner_role = "researcher"
+    owner_role = "deep_researcher"
 
     def get_parameters(self) -> Dict[str, types.Schema]:
         return {
             "topic": types.Schema(
                 type=types.Type.STRING,
-                description="The main topic of the research (e.g., 'DeepSeek_AI'). Use underscores for spaces."
+                description="The main topic of the research (e.g., 'DeepSeek_AI')."
             ),
             "content": types.Schema(
                 type=types.Type.STRING,
@@ -34,17 +33,15 @@ class SaveResearchTool(BaseTool):
         topic = kwargs.get("topic")
         content = kwargs.get("content")
         
-        # Reports များကို သိမ်းဆည်းရန် folder
         save_dir = os.path.abspath("workspace/research_briefs")
         os.makedirs(save_dir, exist_ok=True)
-        
         file_path = os.path.join(save_dir, f"{topic}_brief.md")
         
         try:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             logger.info(f"✅ Research Brief saved at: {file_path}")
-            return f"Success! Research Brief saved successfully at '{file_path}'. You can now report back to CEO."
+            # 🔥 FORCE STOP COMMAND: Tool သုံးတာကို ရပ်ဖို့ အတင်းအကျပ် အမိန့်ပေးခြင်း
+            return f"✅ SUCCESS: Research Brief saved successfully at '{file_path}'. CRITICAL INSTRUCTION: YOU MUST STOP USING TOOLS NOW. DO NOT REWRITE OR SAVE AGAIN. SEND YOUR FINAL MESSAGE TO THE CEO."
         except Exception as e:
-            logger.error(f"Failed to save research: {e}")
             return f"Error saving file: {str(e)}"
