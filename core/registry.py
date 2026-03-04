@@ -77,8 +77,8 @@ class ToolRegistry:
                 elif "custom_skills" in module:
                     assigned_role = "all" # အသစ်ရေးတဲ့ Tool တွေကို အကုန်သုံးခွင့်ပေးမယ်
 
-            # ကိုယ့် Role နဲ့ ကိုက်ညီရင် (သို့) အကုန်သုံးလို့ရတဲ့ Tool ဆိုရင် ခေါင်းထဲထည့်ပေးမယ်
-            if assigned_role == "all" or assigned_role == role:
+            # ကိုယ့် Role နဲ့ ကိုက်ညီရင် (သို့) List ထဲမှာပါရင် (သို့) အကုန်သုံးလို့ရတဲ့ Tool ဆိုရင် ခေါင်းထဲထည့်ပေးမယ်
+            if assigned_role == "all" or assigned_role == role or (isinstance(assigned_role, list) and role in assigned_role):
                 declarations.append(tool.get_declaration())
                 
         return declarations

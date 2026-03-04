@@ -32,6 +32,7 @@ async def run_scheduled_task(prompt: str, user_id: int):
         Do NOT ask the user when to schedule this. It is happening NOW.
         - If it's a reminder, notify the Sir immediately (e.g., "Sir, it is time to go to work.").
         - If it's a research/report task, use your tools to get the data first, then present the final report to the Sir.
+        - CRITICAL RULE: DO NOT use the `report_to_sir` tool for this scheduled task. Simply output your final message directly in your response text. The system will automatically forward your text to the Sir.
         """
         response = await agent.chat(system_trigger_prompt, user_id=user_id)
         
