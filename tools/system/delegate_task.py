@@ -18,8 +18,9 @@ class DelegateTaskTool(BaseTool):
         return {
             "agent_role": types.Schema(
                 type=types.Type.STRING,
-                enum=["web_surfer", "sysadmin", "researcher"],
-                description="'web_surfer' for browser/social media, 'sysadmin' for terminal/files, 'researcher' for web searches."
+                # 🔥 FIX: deep_researcher ကို ထပ်ထည့်ပေးလိုက်သည်
+                enum=["web_surfer", "sysadmin", "researcher", "deep_researcher"],
+                description="'web_surfer' for browser/social media, 'sysadmin' for terminal/files, 'researcher' for code planning, 'deep_researcher' for content/YouTube research."
             ),
             "task_prompt": types.Schema(
                 type=types.Type.STRING,

@@ -110,9 +110,9 @@ class VectorStorage:
             
             for res in results:
                 distance = res.get('_distance', 1.0)
-                # 🔥 TONY STARK FIX: Distance ၁.၁ ထက်ငယ်မှ (တကယ်ဆိုင်မှ) ယူမည်။ 
+                # 🔥 TONY STARK FIX: Distance 1.35 ထက်ငယ်မှ (တကယ်ဆိုင်မှ) ယူမည်။ 
                 # (မဆိုင်တာတွေ ဆွဲမထုတ်လာအောင် တားထားခြင်း)
-                if distance < 1.1:  
+                if distance < 1.35:  
                     found_relevant = True
                     cat = res['category']
                     task = res['task_or_query']
