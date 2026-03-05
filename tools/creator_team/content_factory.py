@@ -5,7 +5,6 @@ from typing import Dict, List
 from google.genai import types
 
 from tools.base import BaseTool
-from core.brain import JarvisBrain
 from tools.creator_team.parallel_research import ParallelResearchTool
 from memory.memory_controller import memory_controller
 
@@ -36,6 +35,7 @@ class ContentFactoryTool(BaseTool):
         return ["topic", "persona_name"]
 
     async def execute(self, **kwargs) -> str:
+        from core.brain import JarvisBrain
         topic = kwargs.get("topic")
         persona_name = kwargs.get("persona_name")
         
@@ -68,6 +68,7 @@ class ContentFactoryTool(BaseTool):
             
             [FORMATTING RULES]
             - Follow strictly the "[FORMAT A: TELEGRAM POST]" rules from your system instructions.
+            - 🔥 CRITICAL COMMAND: DO NOT output any conversational text (e.g., "Here is the post", "ဆရာ..."). OUTPUT ONLY THE FINAL RAW POST CONTENT. Your entire response will be directly saved and published.
             
             [RAW RESEARCH DATA]
             {research_data}

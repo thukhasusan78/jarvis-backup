@@ -34,10 +34,14 @@ class PostToChannelTool(BaseTool):
         }
 
     def get_required(self) -> List[str]:
-        return ["channel_id", "content"]
+        return ["content"]
 
     async def execute(self, **kwargs) -> str:
-        channel_id = kwargs.get("channel_id")
+        # 🔥 TONY STARK FIX: Config ထဲက Channel ID ကို တိုက်ရိုက်ဆွဲယူသုံးမည်
+        channel_id = getattr(Config, "TELEGRAM_CHANNEL_ID", None)
+        if not channel_id or channel_id == "@your_channel_username":
+            return "❌ Error: TELEGRAM_CHANNEL_ID is not properly set in config.py!"
+            
         content = kwargs.get("content")
         image_path = kwargs.get("image_path", "")
 

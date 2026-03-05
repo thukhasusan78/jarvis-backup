@@ -43,6 +43,7 @@ class Config:
 
     # --- 📡 Connectivity ---
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+    TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "@thukhatech")
     TAVILY_KEY = os.getenv("TAVILY_KEY")
     ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID", 0))
 
