@@ -14,19 +14,35 @@ logger = logging.getLogger("JARVIS_BRAIN")
 class JarvisBrain:
     def __init__(self, role: str = "ceo"):
         """
-        Jarvis Brain Initialization
+        Jarvis Brain Initialization with Dynamic Model Routing
         """
-        # 🧠 FIX: Sysadmin နဲ့ Planner ကို Smart Model (Gemini 3 Pro) သုံးခိုင်းမယ်
-        if role in ["sysadmin", "planner", "researcher", "deep_researcher", "coder", "qa_tester", "frontend_coder"]:
-            self.model_name = Config.SMART_MODEL_NAME
-        else:
-            self.model_name = Config.MODEL_NAME
-            
         self.role = role
-        # system.md ဖိုင်ထဲကနေ Personality ကို လှမ်းဖတ်မယ်
-        prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'system.md')
-        with open(prompt_path, 'r', encoding='utf-8') as f:
-            self.system_instruction = f.read()
+        self.model_name = Config.MODEL_NAME  # Default အနေနဲ့ Normal Model ကို အရင်ပေးထားမယ်
+        
+        # ၁။ Agent ရဲ့ ကိုယ်ပိုင်ဖိုင် (ဥပမာ content_writer.md) ရှိမရှိ အရင်ရှာမယ်
+        role_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', f'{self.role}.md')
+        system_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'system.md')
+        
+        # ကိုယ်ပိုင်ဖိုင်ရှိရင် အဲဒါဖတ်မယ်၊ မရှိရင် system.md ကို ဖတ်မယ်
+        prompt_path = role_prompt_path if os.path.exists(role_prompt_path) else system_prompt_path
+        
+        # Orbit သုံးမသုံး ခွဲခြားရန် Flag
+        self.use_orbit = False
+        
+        if os.path.exists(prompt_path):
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                self.system_instruction = f.read()
+                
+            # 💡 SMART ROUTER LOGIC: (မူလအတိုင်း ထားရှိသည်)
+            if "[MODEL: SMART]" in self.system_instruction:
+                self.model_name = Config.SMART_MODEL_NAME
+                
+            # 🚀 ORBIT DYNAMIC LOGIC: ဖိုင်ထဲမှာ [PROVIDER: ORBIT] ပါရင် Claude 4.6 နဲ့ Orbit ကို သုံးမည်
+            if "[PROVIDER: ORBIT]" in self.system_instruction:
+                self.use_orbit = True
+                self.model_name = Config.QA_MODEL_NAME
+        else:
+            self.system_instruction = "You are a helpful AI assistant."
         
         # Registry ကနေ Role နဲ့ ကိုက်ညီတာကိုပဲ အလိုလို ခွဲယူမယ်
         self.tools_config = [
@@ -36,23 +52,24 @@ class JarvisBrain:
         ]
 
     def _get_client(self):
-        """Round-Robin Key Rotation: Get a client with the next available key"""
+        """Round-Robin Key Rotation or Orbit Gateway"""
         
-        # 🚀 FIX: Orbit Proxy က နားလည်အောင် Authorization Header ကို အတင်းတပ်ပေးလိုက်ခြင်း
-        #if self.role in ["sysadmin", "planner"] and hasattr(Config, "ORBIT_API_KEY"):
-            #logger.info(f"Using ORBIT API Key for {self.role.upper()} (Gemini 3 Pro)")
-            #return genai.Client(
-                #api_key=Config.ORBIT_API_KEY, 
-                #http_options={
-                    #'base_url': Config.ORBIT_BASE_URL,
-                    #'headers': {
-                        #'Authorization': f'Bearer {Config.ORBIT_API_KEY}',
-                        #'X-API-Key': Config.ORBIT_API_KEY
-                    #}
-               #}
-            #)
+        # 🔥 ORBIT PROVIDER LOGIC: Agent မှာ [PROVIDER: ORBIT] Tag ပါလာရင် ဒီလမ်းကြောင်းက သွားမယ်
+        if getattr(self, "use_orbit", False) and hasattr(Config, "ORBIT_API_KEY") and Config.ORBIT_API_KEY:
+            logger.info(f"Using ORBIT API Key for {self.role.upper()} ({self.model_name})")
+            return genai.Client(
+                api_key=Config.ORBIT_API_KEY, 
+                http_options={
+                    'base_url': Config.ORBIT_BASE_URL,
+                    'api_version': 'v1beta',
+                    'headers': {
+                        'Authorization': f'Bearer {Config.ORBIT_API_KEY}',
+                        'X-API-Key': Config.ORBIT_API_KEY
+                    }
+                }
+            )
             
-        # ကျန်တဲ့ Agent (ဥပမာ- CEO) တွေကတော့ မူလ .env ထဲက Key အဟောင်းတွေကိုပဲ လှည့်သုံးမယ်
+        # 🌐 NORMAL LOGIC: သာမန် Agent တွေဆိုရင် မူလ .env ထဲက Google Key တွေကို လှည့်သုံးမယ်
         api_key = Config.get_next_api_key()
         logger.info(f"Using Standard API Key ending in: ...{api_key[-4:]}")
         return genai.Client(api_key=api_key)

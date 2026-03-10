@@ -1,11 +1,9 @@
 import os
 import logging
-import asyncio
 from typing import Dict, List
 from google.genai import types
 
 from tools.base import BaseTool
-from tools.creator_team.parallel_research import ParallelResearchTool
 from memory.memory_controller import memory_controller
 
 logger = logging.getLogger("JARVIS_CONTENT_FACTORY")
@@ -16,7 +14,7 @@ class ContentFactoryTool(BaseTool):
     Research -> Write Draft -> Save to Pending -> Request Approval.
     """
     name = "run_content_factory"
-    description = "Run the automated content pipeline. It researches a topic, writes a highly engaging Telegram post using a persona, saves it as a draft, and returns it to the CEO for user approval."
+    description = "Run the automated content pipeline. It assigns tasks to 'deep_researcher' and 'content_writer' agents, saves the draft, and returns it for user approval."
     owner_role = ["ceo", "sysadmin"]
 
     def get_parameters(self) -> Dict[str, types.Schema]:
@@ -35,59 +33,56 @@ class ContentFactoryTool(BaseTool):
         return ["topic", "persona_name"]
 
     async def execute(self, **kwargs) -> str:
-        from core.brain import JarvisBrain
+        # Agent တွေကို စက်ရုံထဲ လှမ်းခေါ်မည်
+        from core.agent import JarvisAgent
+        
         topic = kwargs.get("topic")
         persona_name = kwargs.get("persona_name")
         
         logger.info(f"🏭 Starting Content Factory Pipeline for: {topic}")
 
         try:
-            # 1. PERSONA ရှာဖွေခြင်း
+            # ၁။ PERSONA ပုံစံကို ရှာဖွေခြင်း
             persona_data = memory_controller.search_knowledge(f"Persona: {persona_name}")
             if not persona_data:
                 persona_data = "Use a professional, engaging, and highly energetic tech-focused tone."
 
-            # 2. DEEP RESEARCH လုပ်ခြင်း (Parallel Tool ကို တိုက်ရိုက်လှမ်းခေါ်မည်)
-            logger.info("🏭 Step 1: Performing Deep Research...")
-            researcher = ParallelResearchTool()
-            research_data = await researcher.execute(query=topic)
+            # ၂။ DEEP RESEARCHER ကို သတင်းရှာခိုင်းခြင်း (Prompt အပြည့်အဝဖြင့်)
+            logger.info("🏭 Step 1: Delegating to Deep Researcher Agent...")
+            researcher = JarvisAgent(role="deep_researcher")
             
-            if "Error" in research_data or not research_data.strip():
-                return "❌ Pipeline Failed during Research Phase. Please check Tavily API."
+            r_prompt_path = os.path.join(os.getcwd(), 'core', 'prompts', 'deep_researcher.md')
+            if os.path.exists(r_prompt_path):
+                with open(r_prompt_path, 'r', encoding='utf-8') as f:
+                    researcher.brain.system_instruction = f.read()
+            
+            r_msg = f"MISSION: Do a parallel deep search on the topic '{topic}'. Find facts, public opinions, and controversies. Return the full formatted Research Brief."
+            research_result = await researcher.chat(r_msg, user_id=999999)
 
-            # 3. WRITER AGENT ကို တိုက်ရိုက်ခိုင်းခြင်း (Code ထဲကနေ လှမ်းခေါ်မည်)
-            logger.info("🏭 Step 2: Drafting Content with AI...")
-            writer_brain = JarvisBrain(role="content_writer")
+            # ၃။ CONTENT WRITER ကို ဇာတ်ညွှန်း ပြောင်းရေးခိုင်းခြင်း
+            logger.info("🏭 Step 2: Delegating to Content Writer Agent...")
+            writer = JarvisAgent(role="content_writer")
             
-            draft_prompt = f"""
-            You are the Expert Content Writer.
-            Your task is to write a highly engaging TELEGRAM POST based ONLY on the research below.
+            w_prompt_path = os.path.join(os.getcwd(), 'core', 'prompts', 'content_writer.md')
+            if os.path.exists(w_prompt_path):
+                with open(w_prompt_path, 'r', encoding='utf-8') as f:
+                    writer.brain.system_instruction = f.read()
             
-            [WRITING STYLE / PERSONA]
+            w_msg = f"""
+            MISSION: Write a highly engaging TELEGRAM POST based ONLY on this research brief.
+            
+            [WRITING STYLE / PERSONA]:
             {persona_data}
             
-            [FORMATTING RULES]
-            - Follow strictly the "[FORMAT A: TELEGRAM POST]" rules from your system instructions.
-            - 🔥 CRITICAL COMMAND: DO NOT output any conversational text (e.g., "Here is the post", "ဆရာ..."). OUTPUT ONLY THE FINAL RAW POST CONTENT. Your entire response will be directly saved and published.
+            [RESEARCH BRIEF]:
+            {research_result}
             
-            [RAW RESEARCH DATA]
-            {research_data}
+            CRITICAL COMMAND: Output ONLY the final raw Telegram Post. DO NOT include conversational text like "Here is the post" or "I have written it". Just the content.
             """
-            
-            # Brain ကို Run မည်
-            ai_result = await asyncio.to_thread(writer_brain.think, draft_prompt)
-            
-            draft_content = ""
-            if isinstance(ai_result, str):
-                draft_content = ai_result
-            elif hasattr(ai_result, 'candidates') and ai_result.candidates:
-                draft_content = ai_result.candidates[0].content.parts[0].text
+            draft_content = await writer.chat(w_msg, user_id=999999)
 
-            if not draft_content:
-                return "❌ Pipeline Failed during Drafting Phase."
-
-            # 4. ယာယီဖိုင်အဖြစ် သိမ်းဆည်းခြင်း (Pending Draft)
-            draft_dir = os.path.abspath("workspace/drafts")
+            # ၄။ ယာယီဖိုင်အဖြစ် သိမ်းဆည်းခြင်း (Pending Draft)
+            draft_dir = os.path.abspath(os.path.join("workspace", "drafts"))
             os.makedirs(draft_dir, exist_ok=True)
             draft_path = os.path.join(draft_dir, "pending_post.txt")
             
@@ -96,15 +91,16 @@ class ContentFactoryTool(BaseTool):
                 
             logger.info("🏭 Step 3: Draft saved to pending_post.txt")
 
-            # 5. ဆရာ့ဆီ Approval တောင်းရန် ပြန်ပို့ခြင်း
+            # ၅။ CEO အား အတင်းအကျပ် စည်းကမ်းထုတ်၍ ဆရာ့ထံ ပြန်ပို့ခိုင်းခြင်း
             success_message = (
                 f"**[DRAFT READY FOR APPROVAL]**\n\n"
-                f"ဆရာ၊ '{topic}' နဲ့ ပတ်သက်တဲ့ ဆောင်းပါးကို 'pending_post.txt' မှာ အဆင်သင့် ရေးသားသိမ်းဆည်းထားပါတယ်။\n\n"
-                f"**[ဆောင်းပါး အကြမ်းဖျင်း]**\n"
                 f"========================\n"
-                f"{draft_content}\n"
+                f"{draft_content.strip()}\n"
                 f"========================\n\n"
-                f"အကယ်၍ သဘောကျတယ်ဆိုရင် **'တင်လိုက်တော့'** လို့ အမိန့်ပေးလိုက်ပါ။ `post_to_channel` နဲ့ ချက်ချင်း တင်ပေးပါမယ်။"
+                f"🚨 CRITICAL INSTRUCTION FOR CEO (JARVIS): \n"
+                f"1. DO NOT summarize the draft above. \n"
+                f"2. You MUST output the exact draft text to the Sir word-for-word. \n"
+                f"3. Tell the Sir: 'ဆရာ၊ ဆောင်းပါး ရေးပြီးပါပြီ။ ဖတ်ကြည့်ပြီး သဘောကျရင် 'တင်လိုက်တော့' လို့ အမိန့်ပေးပါခင်ဗျာ။'"
             )
             return success_message
 
