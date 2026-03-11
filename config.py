@@ -12,7 +12,7 @@ class Config:
     
     # --- 🧠 AI Brain Configuration ---
     # ငွေရှာမယ့် Agent ဖြစ်လို့ အမြန်ဆုံးနဲ့ စရိတ်အသက်သာဆုံး Model ကို သုံးမယ်
-    MODEL_NAME = "gemini-2.5-flash" 
+    MODEL_NAME = "gemini-3.1-flash-lite-preview" 
 
     SMART_MODEL_NAME = "gemini-3-flash-preview" # Orbit ရဲ့ 3 Pro ကို သုံးမယ်
     
