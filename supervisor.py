@@ -55,7 +55,7 @@ def recover_jarvis():
     # ==========================================
     # အဆင့် (၂): Soft Restart လုံးဝ မရတော့မှသာ GitHub မှ ဆွဲချမည် (Hard Recovery)
     # ==========================================
-    send_alert("🚨 **[HARD RECOVERY INITIATED]**\nSystem Restored! All Systems are Fully Operational, Sir!")
+    send_alert("**[HARD RECOVERY INITIATED]**\nStarting System Restoration!")
     logger.warning("Soft restart failed. Executing Git Hard Reset...")
 
     try:
@@ -68,7 +68,7 @@ def recover_jarvis():
         time.sleep(10)
 
         if check_jarvis_health():
-            send_alert("✅ **[HARD RECOVERY SUCCESSFUL]**\nGitHub မှ Stable Code ဖြင့် Jarvis ကို အောင်မြင်စွာ အသက်ပြန်သွင်းလိုက်ပါပြီ။")
+            send_alert("**[HARD RECOVERY SUCCESSFUL]**\nSystem Restored! All Systems are Fully Operational, Sir!")
             logger.info("Hard Recovery Successful.")
         else:
             send_alert("❌ **[FATAL ERROR]**\nGitHub မှ Code ဖြင့်လည်း အသက်ပြန်သွင်း၍ မရပါ။ ကျေးဇူးပြု၍ Server သို့ ဝင်ရောက် စစ်ဆေးပေးပါ ဆရာ။")
