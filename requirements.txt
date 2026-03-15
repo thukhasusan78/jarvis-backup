@@ -32,3 +32,6 @@ sqlalchemy
 # --- MEMORY --- 
 lancedb
 sentence-transformers
+
+# --- VISION ---
+face_recognition

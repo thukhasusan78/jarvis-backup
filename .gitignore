@@ -20,11 +20,7 @@ jarvis.log
 # (Backup လိုချင်ရင်တော့ ဒါကို # ခံပြီး ဖွင့်ထားလို့ရတယ်၊ ဒါပေမဲ့ Data ကြီးရင် မတင်တာကောင်းတယ်)
 *.db
 *.sqlite3
-memory/jarvis_chat.db
-memory/jarvis_schedules.db
-memory/knowledge_lance/
-memory/browser_profile/
-memory/facebook_cookies.json
+memory/
 custom_skills/
 workspace/
 *.md
