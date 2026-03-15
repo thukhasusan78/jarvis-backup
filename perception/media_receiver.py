@@ -16,7 +16,7 @@ async def process_incoming_image(file_path: str, caption: str = "") -> str:
     face_result = await asyncio.to_thread(face_engine.analyze_image, file_path)
     
     # ရလာတဲ့ ရလဒ်ကို AI ရဲ့ Context ထဲ ထည့်ပေးဖို့ စာသား ပြန်ထုတ်ပေးမည်
-    context_msg = f"[SYSTEM: User uploaded an image. Local AI Vision Analysis: {face_result}]"
+    context_msg = f"[SYSTEM: User uploaded an image. File Path: '{file_path}'. Local AI Vision Analysis: {face_result}]"
     
     if caption:
         context_msg += f"\nUser's Caption/Question: {caption}"
