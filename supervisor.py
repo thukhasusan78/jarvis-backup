@@ -38,14 +38,18 @@ def recover_jarvis():
     logger.error("Jarvis is DOWN! Initiating recovery...")
 
     # ==========================================
-    # အဆင့် (၁): ရိုးရိုး Restart အရင်လုပ်ကြည့်မည် (Soft Recovery) - ဤအဆင့်ကို အမြဲအရင်လုပ်မည်
+    # အဆင့် (၁): Soft Recovery
     # ==========================================
     logger.info("Attempting Soft Restart...")
-    subprocess.run(["pkill", "-f", "python3 main.py"], stderr=subprocess.DEVNULL)
-    time.sleep(2)
     
+    # 🔥 FIX: main.py ရော၊ Port 8000 ကိုင်ထားတဲ့ကောင်တွေကိုပါ အမြစ်ပြတ် ရှင်းလင်းမည်
+    subprocess.run(["pkill", "-f", "main.py"], stderr=subprocess.DEVNULL)
+    subprocess.run(["fuser", "-k", f"{Config.PORT}/tcp"], stderr=subprocess.DEVNULL) 
+    time.sleep(3) # သေချာ ပိတ်သွားအောင် ၃ စက္ကန့် စောင့်မည်
+    
+    # venv ထဲက python ကို တိုက်ရိုက်ခေါ်သုံးထားလို့ venv အလိုလို ဝင်ပြီးသား ဖြစ်ပါသည်
     subprocess.Popen("nohup venv/bin/python main.py >> jarvis.log 2>&1 &", shell=True)
-    time.sleep(10) # Jarvis အပြည့်အဝ နိုးလာရန် ၁၀ စက္ကန့်ခန့် အချိန်ပေးမည်
+    time.sleep(10)
 
     if check_jarvis_health():
         send_alert("**[SOFT RECOVERY SUCCESSFUL]**\nSystem Restored! All Systems are Fully Operational, Sir!")
