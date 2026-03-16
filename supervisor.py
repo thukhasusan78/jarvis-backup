@@ -75,7 +75,7 @@ def recover_jarvis():
             send_alert("**[HARD RECOVERY SUCCESSFUL]**\nSystem Restored! All Systems are Fully Operational, Sir!")
             logger.info("Hard Recovery Successful.")
         else:
-            send_alert("❌ **[FATAL ERROR]**\nGitHub မှ Code ဖြင့်လည်း အသက်ပြန်သွင်း၍ မရပါ။ ကျေးဇူးပြု၍ Server သို့ ဝင်ရောက် စစ်ဆေးပေးပါ ဆရာ။")
+            send_alert("**[FATAL ERROR]**\nGitHub မှ Code ဖြင့်လည်း အသက်ပြန်သွင်း၍ မရပါ။ ကျေးဇူးပြု၍ Server သို့ ဝင်ရောက် စစ်ဆေးပေးပါ ဆရာ။")
             logger.critical("Failed to restart Jarvis even after Hard Reset!")
     except Exception as e:
         logger.error(f"Error during hard recovery: {e}")

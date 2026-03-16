@@ -1,6 +1,5 @@
 # 1. Security (အရေးအကြီးဆုံး - API Key တွေပါတဲ့ ဖိုင်)
 .env
-core/prompts/system.md
 
 # 2. System Files (မလိုအပ်တဲ့ အမှိုက်ဖိုင်များ)
 __pycache__/
@@ -14,14 +13,18 @@ env/
 
 # 4. Logs (Jarvis ရဲ့ မှတ်တမ်းဖိုင်တွေ)
 *.log
-jarvis.log
 
 # 5. Database & Memory (Data တွေကို GitHub ပေါ် မတင်ချင်ရင်)
 # (Backup လိုချင်ရင်တော့ ဒါကို # ခံပြီး ဖွင့်ထားလို့ရတယ်၊ ဒါပေမဲ့ Data ကြီးရင် မတင်တာကောင်းတယ်)
 *.db
 *.sqlite3
-memory/
+memory/*.db
+memory/knowledge_lance/
+memory/browser_profile/
+memory/facebook_cookies.json
+memory/known_faces/
 custom_skills/
 workspace/
 *.md
+*.yml
 cloudflared.deb
