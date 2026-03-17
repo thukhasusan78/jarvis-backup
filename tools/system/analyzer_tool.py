@@ -1,4 +1,6 @@
 import os
+os.environ["OMP_NUM_THREADS"] = "1"           # 🔥 CPU ကို တစ်ခုတည်းပဲ သုံးခိုင်းမယ်
+os.environ["TOKENIZERS_PARALLELISM"] = "false" # 🔥 Thread တွေ အများကြီးပွားတာကို ပိတ်မယ်
 import logging
 import asyncio
 import uuid
@@ -69,7 +71,7 @@ class CodebaseAnalyzerTool(BaseTool):
                     for i in range(0, len(batch_data), chunk_size):
                         chunk = batch_data[i:i + chunk_size]
                         await asyncio.to_thread(vector_storage.table.add, chunk)
-                        await asyncio.sleep(0.5) 
+                        await asyncio.sleep(1) 
                         
                     return f"✅ အောင်မြင်စွာ Analyze လုပ်ပြီးပါပြီ။ Project '{project_name}' ကို Update လုပ်လိုက်ပါပြီ။"
             except Exception as e:
