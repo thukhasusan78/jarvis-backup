@@ -36,6 +36,3 @@ sentence-transformers
 
 # --- VISION ---
 face_recognition # setuptools==69.5.1 ကို install တင်ပေးရန်
-yt-dlp 
-youtube-transcript-api
-

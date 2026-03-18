@@ -44,13 +44,28 @@ class MigrationTool(BaseTool):
 
         if action == "zip_memory":
             try:
-                logger.info("📦 Zipping Memory (Databases)...")
-                # memory/ folder တစ်ခုလုံးကို zip ချုံ့ပြီး workspace/ ထဲ သိမ်းမည်
+                logger.info("📦 Zipping Important Files for Migration...")
+                import zipfile
+                
                 os.makedirs("workspace", exist_ok=True)
-                shutil.make_archive("workspace/memory_backup", 'zip', "memory")
-                return "✅ Success: Memory folder zipped successfully to 'workspace/memory_backup.zip'."
+                zip_path = "workspace/jarvis_migration_data.zip"
+                
+                # Zip ထဲကို ထည့်မယ့် Folder/File စာရင်း
+                targets = ["memory", "custom_skills", "core/prompts", ".env"]
+                
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for target in targets:
+                        if os.path.isdir(target):
+                            for root, _, files in os.walk(target):
+                                for file in files:
+                                    file_path = os.path.join(root, file)
+                                    zipf.write(file_path, arcname=file_path)
+                        elif os.path.isfile(target):
+                            zipf.write(target, arcname=target)
+                            
+                return f"✅ Success: Data, Prompts, Skills and .env files are zipped securely to '{zip_path}'."
             except Exception as e:
-                return f"❌ Failed to zip memory: {str(e)}"
+                return f"❌ Failed to zip files: {str(e)}"
 
         elif action == "sftp_upload":
             host = kwargs.get("host")
