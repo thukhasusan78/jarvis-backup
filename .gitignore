@@ -27,6 +27,6 @@ memory/facebook_cookies.json
 memory/known_faces/
 custom_skills/
 workspace/
-#*.md
+*.md
 *.yml
 cloudflared.deb

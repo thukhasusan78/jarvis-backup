@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S Interface</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+</head>
+<body>
+    <div id="ui-container">
+        <div id="voice-indicator">J.A.R.V.I.S Standby...</div>
+        
+        <div id="hologram-box" class="hidden">
+            <div id="hologram-content"></div>
+        </div>
+
+        <video id="webcam" autoplay playsinline style="display: none;"></video>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

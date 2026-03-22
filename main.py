@@ -2,6 +2,7 @@ import uvicorn
 import asyncio
 import logging
 # WebSocket ဆိုင်ရာ Library များကို ပေါင်းထည့်ခြင်း
+from core.live_brain import LiveBrain
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect 
 from contextlib import asynccontextmanager
 from core.scheduler import jarvis_scheduler
@@ -45,6 +46,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# 👈 Web UI အတွက် Folder များကို Server တွင် ချိတ်ဆက်ခြင်း
+web_dir = os.path.join("interfaces", "web")
+os.makedirs(os.path.join(web_dir, "static"), exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=os.path.join(web_dir, "static")), name="static")
+
 @app.get("/")
 async def root():
     """Health Check Endpoint"""
@@ -56,45 +63,28 @@ async def root():
     }
 
 # ==========================================
-# 🎙️ JARVIS VOICE WEBSOCKET ENDPOINT (PHASE 1)
+# 🎙️ JARVIS VOICE WEBSOCKET ENDPOINT (PHASE 2)
 # ==========================================
 @app.websocket("/ws/voice")
 async def voice_websocket_endpoint(websocket: WebSocket):
-    """
-    Browser မှ Raw Audio များကို လက်ခံမည့် Endpoint
-    Cloudflared Tunnel (jarvis.thukha.online/ws/voice) မှတစ်ဆင့် ဝင်လာပါမည်။
-    """
-    # 1. Connection ကို လက်ခံခြင်း
+    """Browser မှ Raw Audio များကို လက်ခံပြီး Live Brain သို့ လွှဲပေးမည့် Endpoint"""
     await websocket.accept()
     client_ip = websocket.client.host
     logger.info(f"🎤 Voice WebSocket Connected! (Client: {client_ip})")
 
-    try:
-        # Phase 2 တွင် ဤနေရာ၌ Gemini Live API ချိတ်ဆက်မှုကို စတင်ပါမည်။
-        
-        while True:
-            # 2. Browser ထံမှ Audio Bytes များကို အဆက်မပြတ် ဖမ်းယူခြင်း
-            # Note: WebUI မှ Audio များကို Float32 သို့မဟုတ် PCM16 format ဖြင့် ပို့ပေးရပါမည်။
-            data = await websocket.receive_bytes()
-            
-            # (Testing) Data ဝင်လာကြောင်း Log ထုတ်ပြခြင်း 
-            # အသံဖိုင် ဝင်လာတိုင်း Log တွေ ရှုပ်မနေအောင် Debugging အချိန်မှာပဲ ဖွင့်ထားသင့်ပါတယ်။
-            # logger.info(f"📥 Received Audio Chunk: {len(data)} bytes")
+    # Live Brain အင်ဂျင်ကို အသက်သွင်းခြင်း
+    live_brain = LiveBrain(websocket)
 
-            # Phase 2 တွင် ရလာသော data ကို Gemini ဆီ တိုက်ရိုက် Stream လုပ်မည်။
-            # ပြီးလျှင် Gemini မှ ပြန်လာသော အသံကို await websocket.send_bytes() ဖြင့် ပြန်ပို့ပါမည်။
+    try:
+        # Session ကို စတင် Run မည် (သူ့ဘာသာ Auto-Reconnect များ လုပ်ပေးသွားပါမည်)
+        await live_brain.run_session()
 
     except WebSocketDisconnect:
-        # User ဘက်မှ Browser ပိတ်သွားခြင်း သို့မဟုတ် Connection ပြတ်သွားခြင်း
-        logger.warning(f"⚠️ Voice WebSocket Disconnected cleanly. (Client: {client_ip})")
-        # Phase 2 တွင် ဤနေရာ၌ Gemini Session ကို သေချာ ပြန်ပိတ်ပေးရပါမည်။
-        
+        logger.warning(f"⚠️ User closed the browser or connection dropped. (Client: {client_ip})")
     except Exception as e:
-        # အခြားသော မမျှော်လင့်ထားသည့် Error များ (Network Error စသည်)
-        logger.error(f"❌ Voice WebSocket Error: {e}")
+        logger.error(f"❌ Voice Session Exception: {e}")
         try:
-            # Error တက်သွားလျှင် Connection ကို သေချာ ပြန်ပိတ်ခြင်း
-            await websocket.close(code=1011, reason="Unexpected Server Error")
+            await websocket.close(code=1011, reason="Brain Disconnected")
         except Exception:
             pass
     finally:
