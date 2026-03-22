@@ -20,6 +20,11 @@ class Config:
     MODEL_NAME = "gemini-3.1-flash-lite-preview" 
 
     SMART_MODEL_NAME = "gemini-3-flash-preview" # Orbit ရဲ့ 3 Pro ကို သုံးမယ်
+
+    # --- VOICE CONFIG ---
+    VOICE_MODEL = "gemini-2.5-flash"
+
+    VOICE_NAME = "Enceladus"
     
     # --- 🌌 Orbit Provider API Settings ---
     ORBIT_API_KEY = os.getenv("ORBIT_API_KEY") 
