@@ -95,13 +95,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(chat_id=chat_id, text=final_message, parse_mode="HTML")
 
             # 🧹 Storage မပြည့်အောင် Task ပြီးသွားလျှင် MD ဖိုင်ကို အလိုအလျောက် ရှင်းလင်းမည် (ယာယီပိတ်ထားသည်)
-            # task_file = os.path.join("workspace", "tasks", "pending", f"{task_id}.md")
-            # if os.path.exists(task_file):
-            #     try:
-            #         os.remove(task_file)
-            #         logger.info(f"🧹 Auto-Cleaned Task File: {task_id}.md")
-            #     except Exception:
-            #         pass
+            task_file = os.path.join("workspace", "tasks", "pending", f"{task_id}.md")
+            if os.path.exists(task_file):
+                try:
+                    os.remove(task_file)
+                    logger.info(f"🧹 Auto-Cleaned Task File: {task_id}.md")
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Task Error: {e}")
             await context.bot.send_message(chat_id=chat_id, text=f"⚠️ Error in {task_id}: {str(e)}")

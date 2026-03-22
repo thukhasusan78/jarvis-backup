@@ -6,25 +6,38 @@ const hologramBox = document.getElementById('hologram-box');
 const hologramContent = document.getElementById('hologram-content');
 
 let audioContext;
-let isAutoListen = false; // 🔄 Hands-free စနစ်အတွက် State
+let isAutoListen = false;
 
-// ၁။ Browser Native STT 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = new SpeechRecognition();
 recognition.lang = 'my-MM';
 recognition.interimResults = false;
-recognition.continuous = false; // လက်စွဲထိန်းချုပ်မည်
+recognition.continuous = false;
 
-// --- 🎙️ Hands-free Mic Controller ---
-micBtn.addEventListener('click', () => {
-    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    
-    isAutoListen = !isAutoListen; // အဖွင့်/အပိတ် ခလုတ်အဖြစ် ပြောင်းလဲခြင်း
+// 📱 Mobile Permission Hack: ခလုတ်နှိပ်သည်နှင့် Permission ကို အတင်းတောင်းမည်
+micBtn.addEventListener('click', async () => {
+    // ၁။ Audio Context ကို နှိုးမည် (iOS အတွက် အရေးကြီးသည်)
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+    }
+
+    // ၂။ ဖုန်း Browser များအတွက် Mic Permission ကို Force တောင်းမည်
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        stream.getTracks().forEach(track => track.stop()); // Permission ရပြီးလျှင် ပြန်ပိတ်ထားမည်
+    } catch (err) {
+        console.error("Mic Permission Blocked:", err);
+    }
+
+    isAutoListen = !isAutoListen;
 
     if (isAutoListen) {
         micBtn.style.boxShadow = "0 0 20px #ff0000";
         micBtn.style.borderColor = "#ff0000";
-        micBtn.innerText = "🛑"; // ရပ်တန့်ရန် ခလုတ်အသွင် ပြောင်းမည်
+        micBtn.innerText = "🛑";
         startMic();
     } else {
         micBtn.style.boxShadow = "none";
@@ -36,9 +49,8 @@ micBtn.addEventListener('click', () => {
 });
 
 function startMic() {
-    // Auto-listen ဖွင့်ထားပြီး Jarvis လည်း စကားပြောမနေဘူးဆိုရင် မိုက်ဖွင့်မည်
     if (isAutoListen && !isPlaying) {
-        try { recognition.start(); } catch(e) {}
+        try { recognition.start(); } catch(e) { console.log("Already started."); }
     }
 }
 
@@ -47,93 +59,136 @@ recognition.onstart = () => {
     statusText.style.color = "#ff0000";
 };
 
-// 👇 ဒီအောက်က Code အသစ်ကို ပေါင်းထည့်ပါ
 recognition.onerror = (event) => {
-    console.error("Speech Recognition Error: ", event.error);
-    // ဖုန်းတွင် မည်သည့် Error ကြောင့် မိုက်မပွင့်သည်ကို ပြသပေးမည်
-    statusText.innerText = `Mic Error: ${event.error}`; 
+    console.error("Mic Error: ", event.error);
+    statusText.innerText = `Mic Error: ${event.error}`;
     statusText.style.color = "#ff0000";
-    micBtn.style.boxShadow = "none";
-    micBtn.style.borderColor = "#00d2ff";
-    micBtn.innerText = "🎙️";
-    isAutoListen = false;
+    if(event.error === 'not-allowed') {
+        isAutoListen = false;
+        micBtn.innerText = "🎙️";
+        micBtn.style.borderColor = "#00d2ff";
+        micBtn.style.boxShadow = "none";
+    }
 };
 
-// စကားပြောပြီး၍ ရပ်သွားတိုင်း Auto ပြန်ဖွင့်ပေးမည့်စနစ် (Loop)
 recognition.onend = () => {
     if (isAutoListen && !isPlaying) {
-        setTimeout(startMic, 300); // Error မတက်စေရန် 300ms ခြားပြီးမှ ပြန်ဖွင့်မည်
+        setTimeout(startMic, 300);
     }
 };
 
 recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript;
     userTextDisplay.innerText = transcript;
-    document.getElementById('jarvis-text').innerText = ""; // 👈 အဟောင်းများကို ရှင်းလင်းမည်
+    document.getElementById('jarvis-text').innerText = ""; 
     
-    // Server ဆီသို့ စာသားပို့ခြင်း
     ws.send(JSON.stringify({ type: "text", text: transcript }));
-    
     statusText.innerText = "Thinking...";
     statusText.style.color = "#ffff00";
 };
 
-ws.onmessage = async (event) => {
+// 🚀 Asynchronous ID-based Waiting Room စနစ်သစ်
+let receiveIndex = 0; // ဝင်လာမည့် အသံများအတွက် ခုံနံပါတ် (ID)
+let playIndex = 0;    // ဖွင့်ရမည့် အလှည့် (Sequence)
+const audioWaitingRoom = {}; // အသင့်ဖြစ်သော အသံများ ထိုင်စောင့်မည့်နေရာ
+let isPlaying = false;
+
+ws.onmessage = (event) => {
     if (typeof event.data === "string") {
         try {
             const data = JSON.parse(event.data);
             if (data.type === "hologram_trigger") renderHologram(data);
-            // 👈 Server မှ Text Stream လာပါက UI တွင် ပြသမည်
             else if (data.type === "text_stream") {
                 document.getElementById('jarvis-text').innerText += data.text + " ";
             }
-        } catch (e) { console.log(event.data); }
+        } catch (e) {}
     } else {
-        // အသံ Bytes များကို Queue ထဲသို့ တန်းစီထည့်ခြင်း
-        await handleAudioBlob(event.data);
+        // ⚡ အသံဖိုင်ရောက်လာသည်နှင့် ID တပ်ပေးပြီး ပြိုင်တူ (Async) Decode တန်းလုပ်ခိုင်းမည်
+        const currentId = receiveIndex++;
+        decodeAndStore(event.data, currentId);
     }
 };
 
-// --- 🎵 Robust Audio Queue System (အထစ်အငေါ့ကင်းစနစ်) ---
-const audioQueue = [];
-let isPlaying = false;
-
-async function handleAudioBlob(blob) {
+async function decodeAndStore(blob, id) {
     if (!audioContext) return;
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    
-    audioQueue.push(audioBuffer); // Queue ထဲသို့ ထည့်မည်
-    playNext(); // ဖွင့်ရန် ကြိုးစားမည်
+    try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        // Decode ပြီးသွားပါက မိမိ၏ ID (ခုံနံပါတ်) နေရာတွင် ဝင်ထိုင်စောင့်နေမည်
+        audioWaitingRoom[id] = audioBuffer;
+        attemptPlay(); // အသံအသစ်ရတိုင်း ဖွင့်ရန် ကြိုးစားမည်
+    } catch (error) {
+        console.error("Decode error for ID", id, error);
+        audioWaitingRoom[id] = null; // Error တက်လျှင်လည်း Queue မပိတ်စေရန် null ထည့်မည်
+        attemptPlay();
+    }
+}
+
+function attemptPlay() {
+    if (isPlaying) return; // တစ်ခုခုဖွင့်နေလျှင် ဆက်စောင့်မည်
+
+    // 💡 မိမိဖွင့်ရမည့် အလှည့် (playIndex) သည် Waiting Room ထဲ ရောက်နေပြီလား စစ်ဆေးမည်
+    if (audioWaitingRoom.hasOwnProperty(playIndex)) {
+        const audioBuffer = audioWaitingRoom[playIndex];
+        delete audioWaitingRoom[playIndex]; // Waiting Room ထဲမှ ဖယ်ထုတ်မည်
+
+        if (audioBuffer) {
+            isPlaying = true;
+            if (isAutoListen) { try { recognition.stop(); } catch(e){} }
+            statusText.innerText = "Jarvis is speaking...";
+            statusText.style.color = "#00ff00";
+
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+
+            source.onended = () => {
+                isPlaying = false;
+                playIndex++; // နောက်တစ်လှည့်သို့ ကူးမည်
+                attemptPlay(); // နောက်တစ်လှည့် အသင့်ရှိမရှိ ဆက်တိုက်စစ်မည်
+            };
+            source.start(0);
+        } else {
+            // Decode Error တက်ထားသော ဖိုင်ဖြစ်ပါက ကျော်သွားမည်
+            playIndex++;
+            attemptPlay();
+        }
+    } else {
+        // ဖွင့်စရာ အသံကုန်သွားပြီး ဝင်လာမည့်အသံ (receiveIndex) လည်း မရှိတော့လျှင် မိုက်ပြန်ဖွင့်မည်
+        if (!isPlaying && receiveIndex === playIndex) {
+            if (isAutoListen) {
+                setTimeout(startMic, 300);
+            } else {
+                statusText.innerText = "System Online. Click Mic to speak.";
+            }
+            // အကုန်ပြီးသွားပါက ID များကို 0 မှ ပြန်စမည် (Memory မပြည့်စေရန်)
+            receiveIndex = 0;
+            playIndex = 0;
+        }
+    }
 }
 
 function playNext() {
-    // တစ်ခုခု ဖွင့်နေလျှင် သို့မဟုတ် Queue ထဲတွင် အသံမရှိလျှင် ကျော်မည်
     if (isPlaying || audioQueue.length === 0) return;
     
     isPlaying = true;
-    
-    // 💡 Jarvis စကားပြောနေစဉ် မိမိအသံကို ပြန်မကြားစေရန် (Echo မဖြစ်ရန်) မိုက်ကို ယာယီပိတ်မည်
-    if (isAutoListen) recognition.stop();
+    if (isAutoListen) { recognition.stop(); }
     
     statusText.innerText = "Jarvis is speaking...";
     statusText.style.color = "#00ff00";
 
-    const audioBuffer = audioQueue.shift(); // ပထမဆုံး အသံကို ဆွဲထုတ်မည်
+    const audioBuffer = audioQueue.shift();
     const source = audioContext.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(audioContext.destination);
 
-    // အသံတစ်ပိုင်း ပြီးဆုံးသွားသည့်အခါ (Event-driven)
     source.onended = () => {
         isPlaying = false;
-        
         if (audioQueue.length > 0) {
-            playNext(); // Queue ထဲတွင် ကျန်နေသေးလျှင် ဆက်ဖွင့်မည်
+            playNext();
         } else {
-            // အကုန်ဖွင့်ပြီးသွားလျှင် မိုက်ကို အလိုလို ပြန်ဖွင့်ပေးမည်
             if (isAutoListen) {
-                startMic();
+                setTimeout(startMic, 300);
             } else {
                 statusText.innerText = "System Online. Click Mic to speak.";
             }
@@ -143,7 +198,6 @@ function playNext() {
     source.start(0);
 }
 
-// --- 🧊 Hologram System ---
 function renderHologram(data) {
     hologramBox.classList.remove('hidden');
     if (data.action === "render_map") {
