@@ -22,7 +22,7 @@ class Config:
     SMART_MODEL_NAME = "gemini-3-flash-preview" # Orbit ရဲ့ 3 Pro ကို သုံးမယ်
 
     # --- VOICE CONFIG ---
-    VOICE_MODEL = "gemini-2.5-flash"
+    VOICE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
 
     VOICE_NAME = "Enceladus"
     

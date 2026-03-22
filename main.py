@@ -1,9 +1,12 @@
+import os
 import uvicorn
 import asyncio
 import logging
 # WebSocket ဆိုင်ရာ Library များကို ပေါင်းထည့်ခြင်း
-from core.live_brain import LiveBrain
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect 
+from interfaces.voice.stream_engine import router as voice_router
 from contextlib import asynccontextmanager
 from core.scheduler import jarvis_scheduler
 
@@ -46,6 +49,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# 🎙️ Voice Streaming Engine သစ်ကို ချိတ်ဆက်ခြင်း
+app.include_router(voice_router)
+
 # 👈 Web UI အတွက် Folder များကို Server တွင် ချိတ်ဆက်ခြင်း
 web_dir = os.path.join("interfaces", "web")
 os.makedirs(os.path.join(web_dir, "static"), exist_ok=True)
@@ -54,41 +60,10 @@ app.mount("/static", StaticFiles(directory=os.path.join(web_dir, "static")), nam
 
 @app.get("/")
 async def root():
-    """Health Check Endpoint"""
-    return {
-        "status": "online",
-        "agent": Config.BOT_NAME, 
-        "mode": "Voice & Web Integrated Build",
-        "tools_status": "Active"
-    }
+    """Main Web Interface ကို ဖွင့်ပေးမည့် Endpoint"""
+    return FileResponse(os.path.join(web_dir, "index.html"))
 
-# ==========================================
-# 🎙️ JARVIS VOICE WEBSOCKET ENDPOINT (PHASE 2)
-# ==========================================
-@app.websocket("/ws/voice")
-async def voice_websocket_endpoint(websocket: WebSocket):
-    """Browser မှ Raw Audio များကို လက်ခံပြီး Live Brain သို့ လွှဲပေးမည့် Endpoint"""
-    await websocket.accept()
-    client_ip = websocket.client.host
-    logger.info(f"🎤 Voice WebSocket Connected! (Client: {client_ip})")
 
-    # Live Brain အင်ဂျင်ကို အသက်သွင်းခြင်း
-    live_brain = LiveBrain(websocket)
-
-    try:
-        # Session ကို စတင် Run မည် (သူ့ဘာသာ Auto-Reconnect များ လုပ်ပေးသွားပါမည်)
-        await live_brain.run_session()
-
-    except WebSocketDisconnect:
-        logger.warning(f"⚠️ User closed the browser or connection dropped. (Client: {client_ip})")
-    except Exception as e:
-        logger.error(f"❌ Voice Session Exception: {e}")
-        try:
-            await websocket.close(code=1011, reason="Brain Disconnected")
-        except Exception:
-            pass
-    finally:
-        logger.info(f"🔒 Voice session fully closed for {client_ip}")
 
 # --- 🔥 ENTRY POINT ---
 if __name__ == "__main__":

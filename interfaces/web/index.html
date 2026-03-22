@@ -4,21 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>J.A.R.V.I.S Interface</title>
-    <link rel="stylesheet" href="/static/css/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://unpkg.com/@mediapipe/face_detection"></script>
+    <script src="https://unpkg.com/@mediapipe/camera_utils"></script>
+    <style>
+        body { background-color: #0b0f19; color: #00d2ff; font-family: 'Courier New', Courier, monospace; text-align: center; padding-top: 50px;}
+        #start-btn { padding: 15px 40px; font-size: 20px; background: transparent; color: #00d2ff; border: 2px solid #00d2ff; cursor: pointer; transition: 0.3s; box-shadow: 0 0 10px #00d2ff; border-radius: 8px;}
+        #start-btn:hover { background: #00d2ff; color: #000; box-shadow: 0 0 20px #00d2ff; }
+        .hidden { display: none !important; }
+        #hologram-box { margin-top: 30px; border: 1px solid rgba(0, 210, 255, 0.4); padding: 20px; background: rgba(0, 210, 255, 0.05); border-radius: 10px;}
+    </style>
 </head>
 <body>
     <div id="ui-container">
-        <div id="voice-indicator">J.A.R.V.I.S Standby...</div>
+        <h1>J.A.R.V.I.S SYSTEM</h1>
+        
+        <button id="mic-btn" style="padding: 20px 40px; font-size: 24px; border-radius: 50%; background: transparent; color: #00d2ff; border: 2px solid #00d2ff; cursor: pointer;">🎙️</button>
+        
+        <div id="status-text" style="margin-top: 20px; color: #00ff00; font-size: 18px;">System Online. Click Mic to speak.</div>
+        
+        <div id="transcript-box" style="margin-top: 20px; text-align: left; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 8px;">
+            <p><b style="color:#fff;">You:</b> <span id="user-text">...</span></p>
+        </div>
+
+        <div id="hologram-box" class="hidden">
+            <div id="hologram-content"></div>
+        </div>
+    </div>
+        
+        <div id="voice-indicator" style="margin-top: 20px; color: #666; font-size: 18px;">Standby...</div>
         
         <div id="hologram-box" class="hidden">
             <div id="hologram-content"></div>
         </div>
-
-        <video id="webcam" autoplay playsinline style="display: none;"></video>
     </div>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=2"></script>
 </body>
 </html>

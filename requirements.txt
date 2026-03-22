@@ -38,6 +38,14 @@ sentence-transformers
 face_recognition
 setuptools==69.5.1
 
+# --- VOICE ---
+edge-tts
+
 # --- SECRETRY BOT ---
 pyrogram
 tgcrypto
+
+# --- For Proxy ---
+httpx[socks] 
+python-socks 
+aiohttp-socks
