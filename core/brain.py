@@ -132,72 +132,72 @@ class JarvisBrain:
 
         return "Error: All API Keys failed. Please check your quota or connection."
 
-async def stream_think(self, user_input, chat_history=[], context_memory=""):
-        """
-        Voice WebSocket အတွက် အသံချက်ချင်းထုတ်နိုင်ရန် True Streaming ပြုလုပ်ပေးမည့် Function အသစ်
-        (Tools များနှင့် Context များကို အပြည့်အဝ အသုံးပြုနိုင်သည်)
-        """
-        try:
-            # 1. Client နှင့် အချက်အလက်များ ပြင်ဆင်ခြင်း
-            client = self._get_client()
-            dynamic_context = context_manager.get_current_context()
-            
-            full_prompt = f"""
-            {dynamic_context}
-            
-            Context from Memory:
-            {context_memory}
-            
-            Chat History:
-            {chat_history}
-            
-            User Input:
-            {user_input}
+    async def stream_think(self, user_input, chat_history=[], context_memory=""):
             """
-
-            # 2. Config သတ်မှတ်ခြင်း (Tools များ ပါဝင်သည်)
-            config = types.GenerateContentConfig(
-                system_instruction=self.system_instruction,
-                tools=self.tools_config,
-                temperature=0.7,
-            )
-
-            # 3. 🤖 Async Stream ဖြင့် Gemini ထံမှ အဖြေကို တောင်းခံခြင်း
-            # (မှတ်ချက် - Orbit API က Streaming မရနိုင်သေးပါက Error တက်နိုင်သဖြင့် Normal Model ကိုသာ ဦးစားပေးသုံးသည်)
-            model_to_use = self.model_name
-            if self.use_orbit:
-                logger.warning("Orbit API might not support True Streaming yet. Falling back to Normal Model.")
-                client = genai.Client(api_key=Config.get_next_api_key())
-                model_to_use = Config.MODEL_NAME
-
-            response_stream = await client.aio.models.generate_content_stream(
-                model=model_to_use,
-                contents=full_prompt,
-                config=config
-            )
-
-            # 4. ⚡ ရလာသော အဖြေများကို Yield (အပိုင်းလိုက်) ဖြင့် ပြန်ထုတ်ပေးခြင်း
-            async for chunk in response_stream:
+            Voice WebSocket အတွက် အသံချက်ချင်းထုတ်နိုင်ရန် True Streaming ပြုလုပ်ပေးမည့် Function အသစ်
+            (Tools များနှင့် Context များကို အပြည့်အဝ အသုံးပြုနိုင်သည်)
+            """
+            try:
+                # 1. Client နှင့် အချက်အလက်များ ပြင်ဆင်ခြင်း
+                client = self._get_client()
+                dynamic_context = context_manager.get_current_context()
                 
-                # --- Tool Call များကို ဖမ်းယူခြင်း ---
-                if chunk.function_calls:
-                    for fc in chunk.function_calls:
-                        tool_name = fc.name
-                        tool_args = dict(fc.args) if fc.args else {}
-                        logger.info(f"⚙️ Streaming Brain executing tool: {tool_name}")
-                        
-                        # Registry မှ Tool ကို အမှန်တကယ် Run မည်
-                        tool_result = await tool_registry.execute_tool(tool_name, **tool_args)
-                        
-                        # Tool အဖြေကို AI ဆီ ပြန်ပို့ပြီး အသံဖြင့် ပြန်ဖြေခိုင်းမည့် အပိုင်းကို 
-                        # နောက်ပိုင်းတွင် ထပ်မံ အဆင့်မြှင့်တင်နိုင်ပါသည်။
-                        # (လောလောဆယ် Web UI တွင် Hologram ပြရန် JSON သာ ထုတ်ပေးမည်)
-                        yield f'{{"type": "hologram_trigger", "action": "render_tool", "data": "{tool_name} executed"}}'
+                full_prompt = f"""
+                {dynamic_context}
                 
-                # --- ပုံမှန် စာသားများကို ဖမ်းယူခြင်း ---
-                if chunk.text:
-                    yield chunk.text
+                Context from Memory:
+                {context_memory}
+                
+                Chat History:
+                {chat_history}
+                
+                User Input:
+                {user_input}
+                """
 
-        except Exception as e:
-            logger.error(f"❌ Streaming Error: {e}")
-            yield "တောင်းပန်ပါတယ် ဆရာ၊ အင်တာနက် ချိတ်ဆက်မှု အဆင်မပြေဖြစ်နေပါတယ်။"        
+                # 2. Config သတ်မှတ်ခြင်း (Tools များ ပါဝင်သည်)
+                config = types.GenerateContentConfig(
+                    system_instruction=self.system_instruction,
+                    tools=self.tools_config,
+                    temperature=0.7,
+                )
+
+                # 3. 🤖 Async Stream ဖြင့် Gemini ထံမှ အဖြေကို တောင်းခံခြင်း
+                # (မှတ်ချက် - Orbit API က Streaming မရနိုင်သေးပါက Error တက်နိုင်သဖြင့် Normal Model ကိုသာ ဦးစားပေးသုံးသည်)
+                model_to_use = self.model_name
+                if self.use_orbit:
+                    logger.warning("Orbit API might not support True Streaming yet. Falling back to Normal Model.")
+                    client = genai.Client(api_key=Config.get_next_api_key())
+                    model_to_use = Config.MODEL_NAME
+
+                response_stream = await client.aio.models.generate_content_stream(
+                    model=model_to_use,
+                    contents=full_prompt,
+                    config=config
+                )
+
+                # 4. ⚡ ရလာသော အဖြေများကို Yield (အပိုင်းလိုက်) ဖြင့် ပြန်ထုတ်ပေးခြင်း
+                async for chunk in response_stream:
+                    
+                    # --- Tool Call များကို ဖမ်းယူခြင်း ---
+                    if chunk.function_calls:
+                        for fc in chunk.function_calls:
+                            tool_name = fc.name
+                            tool_args = dict(fc.args) if fc.args else {}
+                            logger.info(f"⚙️ Streaming Brain executing tool: {tool_name}")
+                            
+                            # Registry မှ Tool ကို အမှန်တကယ် Run မည်
+                            tool_result = await tool_registry.execute_tool(tool_name, **tool_args)
+                            
+                            # Tool အဖြေကို AI ဆီ ပြန်ပို့ပြီး အသံဖြင့် ပြန်ဖြေခိုင်းမည့် အပိုင်းကို 
+                            # နောက်ပိုင်းတွင် ထပ်မံ အဆင့်မြှင့်တင်နိုင်ပါသည်။
+                            # (လောလောဆယ် Web UI တွင် Hologram ပြရန် JSON သာ ထုတ်ပေးမည်)
+                            yield f'{{"type": "hologram_trigger", "action": "render_tool", "data": "{tool_name} executed"}}'
+                    
+                    # --- ပုံမှန် စာသားများကို ဖမ်းယူခြင်း ---
+                    if chunk.text:
+                        yield chunk.text
+
+            except Exception as e:
+                logger.error(f"❌ Streaming Error: {e}")
+                yield "တောင်းပန်ပါတယ် ဆရာ၊ အင်တာနက် ချိတ်ဆက်မှု အဆင်မပြေဖြစ်နေပါတယ်။"        
