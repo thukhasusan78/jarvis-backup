@@ -1,0 +1,26 @@
+/* Custom Font & Animations */
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap');
+
+body {
+    font-family: 'Rajdhani', sans-serif;
+    background-color: #000;
+    color: #0ff;
+    overflow: hidden;
+}
+
+/* Arc Reactor Animation */
+#reactor {
+    box-shadow: 0 0 20px #0ff, inset 0 0 20px #0ff;
+    transition: all 0.3s ease;
+}
+.state-listening { box-shadow: 0 0 40px #ff0000, inset 0 0 40px #ff0000 !important; border-color: #ff0000 !important; }
+.state-processing { box-shadow: 0 0 40px #ff0, inset 0 0 40px #ff0 !important; border-color: #ff0 !important; }
+.state-speaking { box-shadow: 0 0 50px #0f0, inset 0 0 50px #0f0 !important; border-color: #0f0 !important; transform: scale(1.1); }
+
+/* HUD Init Animation */
+@keyframes hudInit {
+    0% { opacity: 0; transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-spin-slow { animation: spin 3s linear infinite; }

@@ -3,35 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>J.A.R.V.I.S Interface</title>
-    <script src="https://unpkg.com/@mediapipe/face_detection"></script>
-    <script src="https://unpkg.com/@mediapipe/camera_utils"></script>
-    <style>
-        body { background-color: #0b0f19; color: #00d2ff; font-family: 'Courier New', Courier, monospace; text-align: center; padding-top: 50px;}
-        #start-btn { padding: 15px 40px; font-size: 20px; background: transparent; color: #00d2ff; border: 2px solid #00d2ff; cursor: pointer; transition: 0.3s; box-shadow: 0 0 10px #00d2ff; border-radius: 8px;}
-        #start-btn:hover { background: #00d2ff; color: #000; box-shadow: 0 0 20px #00d2ff; }
-        .hidden { display: none !important; }
-        #hologram-box { margin-top: 30px; border: 1px solid rgba(0, 210, 255, 0.4); padding: 20px; background: rgba(0, 210, 255, 0.05); border-radius: 10px;}
-    </style>
+    <title>JARVIS HUD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body>
-    <div id="ui-container">
-        <h1>J.A.R.V.I.S SYSTEM</h1>
-        
-        <button id="mic-btn" style="padding: 20px 40px; font-size: 24px; border-radius: 50%; background: transparent; color: #00d2ff; border: 2px solid #00d2ff; cursor: pointer;">🎙️</button>
-        
-        <div id="status-text" style="margin-top: 20px; color: #00ff00; font-size: 18px;">System Online. Click Mic to speak.</div>
-        
-        <div id="transcript-box" style="margin-top: 20px; text-align: left; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 8px;">
-            <p><b style="color:#fff;">You:</b> <span id="user-text">...</span></p>
-            <p><b style="color:#00d2ff;">Jarvis:</b> <span id="jarvis-text">...</span></p>
+<body class="flex flex-col items-center justify-center h-screen">
+
+    <div id="init-screen" class="text-center cursor-pointer" onclick="systemBoot()">
+        <h1 class="text-5xl font-bold tracking-widest text-cyan-400 animate-pulse">J.A.R.V.I.S</h1>
+        <p class="text-sm mt-4 text-gray-400">TOUCH TO INITIALIZE SYSTEM</p>
+    </div>
+
+    <div id="hud-interface" class="hidden w-full h-full p-4 relative flex flex-col items-center justify-center">
+        <div class="absolute top-4 left-4 text-xs text-cyan-500 font-bold">
+            <p>SYS: ONLINE</p>
+            <p>NET: SECURE</p>
+            <p>LOC: MANDALAY</p>
+        </div>
+        <div class="absolute top-4 right-4 text-xs text-right text-cyan-500 font-bold">
+            <p id="clock">00:00:00</p>
+            <p>BAT: 100%</p>
         </div>
 
-        <div id="hologram-box" class="hidden">
-            <div id="hologram-content"></div>
+        <div id="reactor" class="w-48 h-48 rounded-full border-8 border-cyan-400 flex items-center justify-center mb-8 relative cursor-pointer" onclick="toggleMic()">
+            <div class="w-32 h-32 rounded-full border-4 border-cyan-600 opacity-50 animate-spin-slow"></div>
+            <div class="absolute w-full h-full rounded-full border-t-4 border-cyan-200 animate-spin"></div>
+            <span id="mic-status" class="absolute text-white font-bold tracking-widest text-sm">READY</span>
+        </div>
+
+        <div id="hologram-box" class="hidden mb-4 p-4 border-2 border-green-500 rounded bg-black bg-opacity-70 text-center shadow-[0_0_15px_#00ff00]">
+            <div id="hologram-content" class="animate-pulse"></div>
+        </div>
+
+        <div class="w-3/4 max-w-2xl bg-black bg-opacity-60 border border-cyan-800 p-4 rounded-lg shadow-lg">
+            <p class="mb-2"><b class="text-gray-400">You:</b> <span id="user-text" class="text-white">...</span></p>
+            <p><b class="text-cyan-400">Jarvis:</b> <span id="jarvis-text" class="text-cyan-100">...</span></p>
         </div>
     </div>
 
-    <script src="/static/js/app.js?v=9"></script>
+    <div id="shutdown-screen" class="hidden w-full h-full bg-black flex items-center justify-center">
+        <p class="text-red-500 text-3xl font-bold tracking-widest animate-pulse">SYSTEM OFFLINE</p>
+    </div>
+
+    <script src="/static/js/app.js?v=17"></script>
 </body>
 </html>

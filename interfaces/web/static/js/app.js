@@ -1,142 +1,167 @@
-const ws = new WebSocket("wss://jarvis.thukha.online/ws/voice");
-const micBtn = document.getElementById('mic-btn');
-const statusText = document.getElementById('status-text');
+// --- CONFIG & DOM ---
+const wsProtocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+const WS_URL = wsProtocol + window.location.host + "/ws/voice";
+
+const screens = {
+    init: document.getElementById('init-screen'),
+    hud: document.getElementById('hud-interface'),
+    shutdown: document.getElementById('shutdown-screen')
+};
+const reactor = document.getElementById('reactor');
+const micStatus = document.getElementById('mic-status');
 const userTextDisplay = document.getElementById('user-text');
+const jarvisTextDisplay = document.getElementById('jarvis-text');
 const hologramBox = document.getElementById('hologram-box');
 const hologramContent = document.getElementById('hologram-content');
 
-let audioContext;
-let isAutoListen = false;
+// --- STATE ---
+let socket = null;
+let recognition = null;
+let audioContext = null;
+let isShuttingDown = false;
+let isAutoListen = true; // Touch ခဲ့ပြီးဖြစ်၍ Auto ဖွင့်ပေးမည်
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognition = new SpeechRecognition();
-recognition.lang = 'my-MM';
-recognition.interimResults = false;
-recognition.continuous = false;
+// Streaming Queue States
+let receiveIndex = 0;
+let playIndex = 0;
+const audioWaitingRoom = {};
+let isPlaying = false;
 
-// 📱 Mobile Permission Hack: ခလုတ်နှိပ်သည်နှင့် Permission ကို အတင်းတောင်းမည်
-micBtn.addEventListener('click', async () => {
-    // ၁။ Audio Context ကို နှိုးမည် (iOS အတွက် အရေးကြီးသည်)
-    if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    }
+// --- 1. BOOT SEQUENCE (The Trusted Gesture) ---
+window.systemBoot = () => { 
+    screens.init.classList.add('hidden');
+    screens.hud.classList.remove('hidden');
+    screens.hud.style.animation = "hudInit 1s ease forwards";
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
     if (audioContext.state === 'suspended') {
-        await audioContext.resume();
+        audioContext.resume(); 
     }
 
-    // ၂။ ဖုန်း Browser များအတွက် Mic Permission ကို Force တောင်းမည်
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        stream.getTracks().forEach(track => track.stop()); // Permission ရပြီးလျှင် ပြန်ပိတ်ထားမည်
-    } catch (err) {
-        console.error("Mic Permission Blocked:", err);
+    // 💡 ပြဿနာဖြစ်စေသော Hardware လုသည့် Silent Ping ကို ဖယ်ရှားလိုက်ပါပြီ
+
+    connectWebSocket();
+    initVoice(); 
+};
+
+// --- 2. WEBSOCKET HANDLER ---
+function connectWebSocket() {
+    socket = new WebSocket(WS_URL);
+    socket.onopen = () => console.log("Connected to JARVIS Core");
+    socket.onclose = () => console.log("Disconnected");
+
+    socket.onmessage = (event) => {
+        if (typeof event.data === "string") {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === "hologram_trigger") {
+                    renderHologram(data);
+                } else if (data.type === "text_stream") {
+                    jarvisTextDisplay.innerText += data.text + " ";
+                }
+            } catch (e) {}
+        } else {
+            // အသံ Bytes များကို ID တပ်၍ Waiting Room သို့ ပို့မည်
+            const currentId = receiveIndex++;
+            decodeAndStore(event.data, currentId);
+        }
+    };
+}
+
+// --- 3. NATIVE SPEECH RECOGNITION ---
+function initVoice() {
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Speech) {
+        alert("Your browser does not support Speech Recognition.");
+        return;
     }
 
-    isAutoListen = !isAutoListen;
+    recognition = new Speech();
+    recognition.lang = 'my-MM';
+    recognition.continuous = false;
+    recognition.interimResults = false;
 
-    if (isAutoListen) {
-        micBtn.style.boxShadow = "0 0 20px #ff0000";
-        micBtn.style.borderColor = "#ff0000";
-        micBtn.innerText = "🛑";
-        startMic();
-    } else {
-        micBtn.style.boxShadow = "none";
-        micBtn.style.borderColor = "#00d2ff";
-        micBtn.innerText = "🎙️";
-        statusText.innerText = "System Offline. Click Mic to start.";
-        recognition.stop();
-    }
-});
+    recognition.onstart = () => {
+        if (!isShuttingDown && !isPlaying) {
+            setReactorState("listening");
+        }
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Mic Error:", event.error);
+        // Hardware လုခြင်း သို့မဟုတ် Permission ကြောင့် ပိတ်ကျပါက အတင်းပြန်မဖွင့်တော့ဘဲ ရပ်ထားမည်
+        if (event.error === 'not-allowed' || event.error === 'audio-capture' || event.error === 'aborted') {
+            micStatus.innerText = "MIC ERROR";
+            setReactorState("offline");
+            isAutoListen = false;
+        }
+    };
+
+    recognition.onresult = (event) => {
+        const text = event.results[0][0].transcript;
+        userTextDisplay.innerText = text;
+        jarvisTextDisplay.innerText = ""; // Clear old response
+        
+        setReactorState("processing");
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "text", text: text }));
+        }
+    };
+
+    recognition.onend = () => {
+        // အသံမဖွင့်နေဘူး၊ Auto လည်းဖြစ်တယ်ဆိုရင် မိုက်ပြန်ဖွင့်မည်
+        if (!isShuttingDown && isAutoListen && !isPlaying) {
+            setTimeout(startMic, 300);
+        }
+    };
+
+    startMic();
+}
 
 function startMic() {
-    if (isAutoListen && !isPlaying) {
-        try { recognition.start(); } catch(e) { console.log("Already started."); }
+    if (isAutoListen && !isPlaying && !isShuttingDown) {
+        try { recognition.start(); } catch(e) {}
     }
 }
 
-recognition.onstart = () => {
-    statusText.innerText = "Listening... (Speak now)";
-    statusText.style.color = "#ff0000";
-};
-
-recognition.onerror = (event) => {
-    console.error("Mic Error: ", event.error);
-    statusText.innerText = `Mic Error: ${event.error}`;
-    statusText.style.color = "#ff0000";
-    if(event.error === 'not-allowed') {
-        isAutoListen = false;
-        micBtn.innerText = "🎙️";
-        micBtn.style.borderColor = "#00d2ff";
-        micBtn.style.boxShadow = "none";
-    }
-};
-
-recognition.onend = () => {
-    if (isAutoListen && !isPlaying) {
-        setTimeout(startMic, 300);
-    }
-};
-
-recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    userTextDisplay.innerText = transcript;
-    document.getElementById('jarvis-text').innerText = ""; 
-    
-    ws.send(JSON.stringify({ type: "text", text: transcript }));
-    statusText.innerText = "Thinking...";
-    statusText.style.color = "#ffff00";
-};
-
-// 🚀 Asynchronous ID-based Waiting Room စနစ်သစ်
-let receiveIndex = 0; // ဝင်လာမည့် အသံများအတွက် ခုံနံပါတ် (ID)
-let playIndex = 0;    // ဖွင့်ရမည့် အလှည့် (Sequence)
-const audioWaitingRoom = {}; // အသင့်ဖြစ်သော အသံများ ထိုင်စောင့်မည့်နေရာ
-let isPlaying = false;
-
-ws.onmessage = (event) => {
-    if (typeof event.data === "string") {
-        try {
-            const data = JSON.parse(event.data);
-            if (data.type === "hologram_trigger") renderHologram(data);
-            else if (data.type === "text_stream") {
-                document.getElementById('jarvis-text').innerText += data.text + " ";
-            }
-        } catch (e) {}
+// Manual Toggle for Mic
+window.toggleMic = () => {
+    isAutoListen = !isAutoListen;
+    if (isAutoListen) {
+        startMic();
     } else {
-        // ⚡ အသံဖိုင်ရောက်လာသည်နှင့် ID တပ်ပေးပြီး ပြိုင်တူ (Async) Decode တန်းလုပ်ခိုင်းမည်
-        const currentId = receiveIndex++;
-        decodeAndStore(event.data, currentId);
+        try { recognition.stop(); } catch(e) {}
+        setReactorState("offline");
+        micStatus.innerText = "OFFLINE";
     }
 };
 
+// --- 4. TRUE STREAMING & WAITING ROOM (GAPLESS AUDIO) ---
 async function decodeAndStore(blob, id) {
     if (!audioContext) return;
     try {
         const arrayBuffer = await blob.arrayBuffer();
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        // Decode ပြီးသွားပါက မိမိ၏ ID (ခုံနံပါတ်) နေရာတွင် ဝင်ထိုင်စောင့်နေမည်
         audioWaitingRoom[id] = audioBuffer;
-        attemptPlay(); // အသံအသစ်ရတိုင်း ဖွင့်ရန် ကြိုးစားမည်
+        attemptPlay(); 
     } catch (error) {
         console.error("Decode error for ID", id, error);
-        audioWaitingRoom[id] = null; // Error တက်လျှင်လည်း Queue မပိတ်စေရန် null ထည့်မည်
+        audioWaitingRoom[id] = null; 
         attemptPlay();
     }
 }
 
 function attemptPlay() {
-    if (isPlaying) return; // တစ်ခုခုဖွင့်နေလျှင် ဆက်စောင့်မည်
+    if (isPlaying || isShuttingDown) return; 
 
-    // 💡 မိမိဖွင့်ရမည့် အလှည့် (playIndex) သည် Waiting Room ထဲ ရောက်နေပြီလား စစ်ဆေးမည်
     if (audioWaitingRoom.hasOwnProperty(playIndex)) {
         const audioBuffer = audioWaitingRoom[playIndex];
-        delete audioWaitingRoom[playIndex]; // Waiting Room ထဲမှ ဖယ်ထုတ်မည်
+        delete audioWaitingRoom[playIndex]; 
 
         if (audioBuffer) {
             isPlaying = true;
-            if (isAutoListen) { try { recognition.stop(); } catch(e){} }
-            statusText.innerText = "Jarvis is speaking...";
-            statusText.style.color = "#00ff00";
+            try { recognition.stop(); } catch(e) {} // စကားပြောနေစဉ် မိုက်ပိတ်မည်
+            setReactorState("speaking");
 
             const source = audioContext.createBufferSource();
             source.buffer = audioBuffer;
@@ -144,66 +169,56 @@ function attemptPlay() {
 
             source.onended = () => {
                 isPlaying = false;
-                playIndex++; // နောက်တစ်လှည့်သို့ ကူးမည်
-                attemptPlay(); // နောက်တစ်လှည့် အသင့်ရှိမရှိ ဆက်တိုက်စစ်မည်
+                playIndex++; 
+                attemptPlay(); 
             };
             source.start(0);
         } else {
-            // Decode Error တက်ထားသော ဖိုင်ဖြစ်ပါက ကျော်သွားမည်
             playIndex++;
             attemptPlay();
         }
     } else {
-        // ဖွင့်စရာ အသံကုန်သွားပြီး ဝင်လာမည့်အသံ (receiveIndex) လည်း မရှိတော့လျှင် မိုက်ပြန်ဖွင့်မည်
+        // အသံကုန်သွားပါက မိုက်ပြန်ဖွင့်မည်
         if (!isPlaying && receiveIndex === playIndex) {
+            receiveIndex = 0;
+            playIndex = 0;
             if (isAutoListen) {
                 setTimeout(startMic, 300);
             } else {
-                statusText.innerText = "System Online. Click Mic to speak.";
+                setReactorState("offline");
             }
-            // အကုန်ပြီးသွားပါက ID များကို 0 မှ ပြန်စမည် (Memory မပြည့်စေရန်)
-            receiveIndex = 0;
-            playIndex = 0;
         }
     }
 }
 
-function playNext() {
-    if (isPlaying || audioQueue.length === 0) return;
-    
-    isPlaying = true;
-    if (isAutoListen) { recognition.stop(); }
-    
-    statusText.innerText = "Jarvis is speaking...";
-    statusText.style.color = "#00ff00";
-
-    const audioBuffer = audioQueue.shift();
-    const source = audioContext.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(audioContext.destination);
-
-    source.onended = () => {
-        isPlaying = false;
-        if (audioQueue.length > 0) {
-            playNext();
-        } else {
-            if (isAutoListen) {
-                setTimeout(startMic, 300);
-            } else {
-                statusText.innerText = "System Online. Click Mic to speak.";
-            }
-        }
-    };
-
-    source.start(0);
+// --- 5. UI EFFECTS ---
+function setReactorState(state) {
+    reactor.classList.remove('state-listening', 'state-processing', 'state-speaking');
+    if (state === 'listening') {
+        reactor.classList.add('state-listening');
+        micStatus.innerText = "LISTENING";
+    } else if (state === 'processing') {
+        reactor.classList.add('state-processing');
+        micStatus.innerText = "THINKING";
+    } else if (state === 'speaking') {
+        reactor.classList.add('state-speaking');
+        micStatus.innerText = "SPEAKING";
+    } else {
+        micStatus.innerText = "READY";
+    }
 }
 
 function renderHologram(data) {
     hologramBox.classList.remove('hidden');
     if (data.action === "render_map") {
-        hologramContent.innerHTML = `<h3 style="color:#00ff00;">📍 Map: ${data.data}</h3>`;
+        hologramContent.innerHTML = `<h3 class="text-green-400 font-bold tracking-widest">📍 MAP DATA: ${data.data}</h3>`;
     } else if (data.action === "render_tool") {
-        hologramContent.innerHTML = `<h3 style="color:#00ff00;">⚙️ ${data.data}</h3>`;
+        hologramContent.innerHTML = `<h3 class="text-green-400 font-bold tracking-widest">⚙️ EXECUTING: ${data.data}</h3>`;
     }
     setTimeout(() => { hologramBox.classList.add('hidden'); }, 15000);
 }
+
+// Clock
+setInterval(() => {
+    document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+}, 1000);
