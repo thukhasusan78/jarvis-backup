@@ -77,6 +77,11 @@ async def handle_incoming_messages(client, message):
     """သာမန် စာဝင်လာလျှင် ဖမ်းမည့် Handler"""
     try:
         if getattr(message, "service", False): return # Service များကို RawUpdate ကသာ ရှင်းမည်
+        
+        # 🚀 THE FIX: Strict Content Validation (စာသားရော၊ Media ပါ မရှိလျှင် Call Log အဖြစ် သတ်မှတ်ပြီး ပယ်ချမည်)
+        if not message.text and not message.media:
+            logger.info("👻 Ghost Message (Video Call Ended / System Log) detected. Dropping instantly.")
+            return
             
         chat_id = message.chat.id
         user_name = message.from_user.first_name if message.from_user else "Guest"
@@ -90,24 +95,40 @@ async def handle_incoming_messages(client, message):
         logger.error(f"❌ Secretary Error handling text message: {e}")
 
 async def handle_raw_updates(client, update, users, chats):
-    """🛑 THE FIX: Ringing အချိန်ကို ကျော်ပြီး၊ တကယ် Missed Call ဖြစ်သွားမှသာ ဖမ်းမည်"""
+    """🛑 THE FIX: Raw Update Wrapper ထဲမှ Message ကို ရှာဖွေပြီး Missed Call စစ်ထုတ်မည်"""
     try:
-        if isinstance(update, UpdateNewMessage):
+        msg = None
+        # 💡 ပြဿနာ၏ တရားခံ: MTProto သည် Data များကို 'Updates' အထုပ်ထဲ ထည့်ပို့လေ့ရှိသည်။
+        # ထို့ကြောင့် အထုပ် (update.updates) ထဲမှ UpdateNewMessage ကို အရင်ရှာဖွေ ဆွဲထုတ်ရပါမည်။
+        if hasattr(update, "message"):
             msg = update.message
-            if isinstance(msg, MessageService) and isinstance(msg.action, MessageActionPhoneCall):
+        elif hasattr(update, "updates"):
+            for u in update.updates:
+                if isinstance(u, UpdateNewMessage):
+                    msg = u.message
+                    break 
+        
+        # 💡 Message အစစ် ရလာပြီဆိုလျှင် ၎င်းသည် ဖုန်းခေါ်ဆိုမှု (Service Message) ဟုတ်မဟုတ် ဆက်စစ်မည်
+        if msg and isinstance(msg, MessageService) and getattr(msg, "action", None):
+            if isinstance(msg.action, MessageActionPhoneCall):
                 reason = getattr(msg.action, "reason", None)
                 
-                # duration == 0 ကို ဖြုတ်လိုက်ပါပြီ။ တကယ် ဖုန်းချ/လွတ်သွားမှသာ အလုပ်လုပ်ပါမည်။
+                # 💡 တကယ် Missed Call (ဖုန်းမကိုင်လိုက်ခြင်း) ဟုတ်မဟုတ် အတိအကျ စစ်ဆေးခြင်း
                 if isinstance(reason, PhoneCallDiscardReasonMissed):
-                    if isinstance(msg.peer_id, PeerUser):
-                        chat_id = msg.peer_id.user_id
-                        if getattr(msg, "out", False) is False: # ဝင်လာသော ဖုန်းဖြစ်လျှင်
+                    if getattr(msg, "out", False) is False: # ဝင်လာသော ဖုန်းဖြစ်မှသာ
+                        if isinstance(msg.peer_id, PeerUser):
+                            chat_id = msg.peer_id.user_id
                             user = users.get(chat_id)
-                            user_name = user.first_name if user else "Guest"
+                            user_name = getattr(user, "first_name", "Guest") if user else "Guest"
+                            
                             logger.info(f"📞 MISSED CALL confirmed from {user_name}. Triggering Secretary...")
-                            await process_secretary_reply(client, chat_id, user_name, "[Missed Call / ဖုန်းမကိုင်လိုက်ပါ]", is_bot=False)
+                            await process_secretary_reply(
+                                client, chat_id, user_name, 
+                                "[Missed Call / ဖုန်းမကိုင်လိုက်ပါ]", 
+                                is_bot=False
+                            )
     except Exception as e:
-        pass
+        logger.error(f"Raw Update Error: {e}")
 
 async def start_secretary():
     global app

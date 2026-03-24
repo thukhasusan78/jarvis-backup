@@ -24,7 +24,7 @@ class SecretaryBrain:
         try:
             full_prompt = f"Chat History:\n{chat_history_text}\n\nUser ({user_name}): {text}"
             
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model=self.model_name,
                 contents=full_prompt,
                 config=types.GenerateContentConfig(
