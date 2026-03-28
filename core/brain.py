@@ -20,12 +20,19 @@ class JarvisBrain:
         self.role = role
         self.model_name = Config.MODEL_NAME  # Default အနေနဲ့ Normal Model ကို အရင်ပေးထားမယ်
         
-        # ၁။ Agent ရဲ့ ကိုယ်ပိုင်ဖိုင် (ဥပမာ content_writer.md) ရှိမရှိ အရင်ရှာမယ်
-        role_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', f'{self.role}.md')
-        system_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'system.md')
+        # ၁။ Agent ရဲ့ ကိုယ်ပိုင်ဖိုင်ကို prompts folder အောက်မှာ နေရာအနှံ့လိုက်ရှာမယ်
+        base_prompt_dir = os.path.join(os.path.dirname(__file__), 'prompts')
+        prompt_path = None
+        
+        for root, dirs, files in os.walk(base_prompt_dir):
+            if f'{self.role}.md' in files:
+                prompt_path = os.path.join(root, f'{self.role}.md')
+                break
+                
+        system_prompt_path = os.path.join(base_prompt_dir, 'system.md')
         
         # ကိုယ်ပိုင်ဖိုင်ရှိရင် အဲဒါဖတ်မယ်၊ မရှိရင် system.md ကို ဖတ်မယ်
-        prompt_path = role_prompt_path if os.path.exists(role_prompt_path) else system_prompt_path
+        prompt_path = prompt_path if prompt_path else system_prompt_path
         
         # Orbit သုံးမသုံး ခွဲခြားရန် Flag
         self.use_orbit = False
