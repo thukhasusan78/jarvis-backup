@@ -95,38 +95,42 @@ async def handle_incoming_messages(client, message):
         logger.error(f"❌ Secretary Error handling text message: {e}")
 
 async def handle_raw_updates(client, update, users, chats):
-    """🛑 THE FIX: Raw Update Wrapper ထဲမှ Message ကို ရှာဖွေပြီး Missed Call စစ်ထုတ်မည်"""
+    """🛑 THE ULTIMATE FIX: String-based MTProto Parser (2026 Developer Method)"""
     try:
-        msg = None
-        # 💡 ပြဿနာ၏ တရားခံ: MTProto သည် Data များကို 'Updates' အထုပ်ထဲ ထည့်ပို့လေ့ရှိသည်။
-        # ထို့ကြောင့် အထုပ် (update.updates) ထဲမှ UpdateNewMessage ကို အရင်ရှာဖွေ ဆွဲထုတ်ရပါမည်။
-        if hasattr(update, "message"):
-            msg = update.message
-        elif hasattr(update, "updates"):
-            for u in update.updates:
-                if isinstance(u, UpdateNewMessage):
-                    msg = u.message
-                    break 
+        # Data အကြမ်းကြီးတစ်ခုလုံးကို String အဖြစ် အတင်းပြောင်းလိုက်မည်
+        update_str = str(update)
         
-        # 💡 Message အစစ် ရလာပြီဆိုလျှင် ၎င်းသည် ဖုန်းခေါ်ဆိုမှု (Service Message) ဟုတ်မဟုတ် ဆက်စစ်မည်
-        if msg and isinstance(msg, MessageService) and getattr(msg, "action", None):
-            if isinstance(msg.action, MessageActionPhoneCall):
-                reason = getattr(msg.action, "reason", None)
+        # 💡 Pyrogram ၏ Parsing အခက်အခဲများကို ကျော်ဖြတ်ရန် စာသားတိုက်ရိုက် ရှာဖွေမည်
+        is_missed = "PhoneCallDiscardReasonMissed" in update_str
+        is_busy = "PhoneCallDiscardReasonBusy" in update_str
+
+        # ဖုန်းမကိုင်လိုက်ခြင်း (Missed) သို့မဟုတ် ဖုန်းချလိုက်ခြင်း (Busy) အတိအကျဖြစ်လျှင်
+        if is_missed or is_busy:
+            
+            # 💡 ကိုယ်က ခေါ်ပြီး တစ်ဖက်လူ မကိုင်တာမျိုး (Outgoing Missed Call) ကို စစ်ထုတ်မည်
+            if "out=True" in update_str.replace(" ", ""):
+                return # ကိုယ်ခေါ်တာဆိုရင် Secretary က စာဝင်မပြန်ပါ
                 
-                # 💡 တကယ် Missed Call (ဖုန်းမကိုင်လိုက်ခြင်း) ဟုတ်မဟုတ် အတိအကျ စစ်ဆေးခြင်း
-                if isinstance(reason, PhoneCallDiscardReasonMissed):
-                    if getattr(msg, "out", False) is False: # ဝင်လာသော ဖုန်းဖြစ်မှသာ
-                        if isinstance(msg.peer_id, PeerUser):
-                            chat_id = msg.peer_id.user_id
-                            user = users.get(chat_id)
-                            user_name = getattr(user, "first_name", "Guest") if user else "Guest"
-                            
-                            logger.info(f"📞 MISSED CALL confirmed from {user_name}. Triggering Secretary...")
-                            await process_secretary_reply(
-                                client, chat_id, user_name, 
-                                "[Missed Call / ဖုန်းမကိုင်လိုက်ပါ]", 
-                                is_bot=False
-                            )
+            caller_id = None
+            caller_name = "Guest"
+            my_id = getattr(client.me, "id", None) if getattr(client, "me", None) else None
+            
+            # Raw Update ထဲတွင် အလိုလို ပါလာသော တစ်ဖက်လူ (User) ၏ ID နှင့် နာမည်ကို ဆွဲထုတ်မည်
+            if users:
+                for uid, user in users.items():
+                    if my_id and uid == my_id:
+                        continue # ကိုယ့် ID ကို ကျော်မည်
+                    caller_id = uid
+                    caller_name = getattr(user, "first_name", "Guest")
+                    break
+                    
+            if caller_id:
+                logger.info(f"📞 MISSED CALL accurately detected from {caller_name}! Triggering Secretary...")
+                await process_secretary_reply(
+                    client, caller_id, caller_name, 
+                    "[Missed Call / ဖုန်းမကိုင်လိုက်ပါ]", 
+                    is_bot=False
+                )
     except Exception as e:
         logger.error(f"Raw Update Error: {e}")
 
