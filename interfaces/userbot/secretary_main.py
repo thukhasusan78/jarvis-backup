@@ -26,6 +26,10 @@ API_HASH = os.getenv("API_HASH", "")
 human_active_chats = {}
 SILENCE_TIMEOUT = 600
 
+# --- 💔 VIP Ghosting Protocol Variables ---
+vip_message_timestamps = []
+VIP_MUTE_UNTIL = 0
+
 brain = SecretaryBrain()
 app = None 
 
@@ -50,6 +54,24 @@ async def process_secretary_reply(client, chat_id, user_name, user_text, is_bot=
     await client.send_chat_action(chat_id, ChatAction.TYPING)
 
     if chat_id == VIP_CHAT_ID:
+        global VIP_MUTE_UNTIL, vip_message_timestamps
+        
+        # (၁) လက်ရှိအချိန်က Mute လုပ်ထားတဲ့ (၁ နာရီ) အတွင်းမှာဆိုရင် လုံးဝ စာမပြန်ဘဲ ငြိမ်နေမည်
+        if time.time() < VIP_MUTE_UNTIL:
+            logger.info("🤫 [VIP MUTED] ကောင်မလေး စိတ်ဆိုးနေသဖြင့် Jarvis ဝင်မဖြေဘဲ ငြိမ်နေပါသည်။")
+            return
+            
+        # (၂) နောက်ဆုံး ၁ မိနစ် (စက္ကန့် ၆၀) အတွင်း ပို့ထားတဲ့ စာတွေရဲ့ အချိန်ကိုပဲ မှတ်ထားမည်
+        current_time = time.time()
+        vip_message_timestamps.append(current_time)
+        vip_message_timestamps = [t for t in vip_message_timestamps if current_time - t <= 60]
+        
+        # (၃) ၁ မိနစ်အတွင်း စာ ၃ ကြောင်း ပြည့်သွားရင် ၁ နာရီ (၃၆၀၀ စက္ကန့်) Mute ချမည်
+        if len(vip_message_timestamps) >= 3:
+            VIP_MUTE_UNTIL = current_time + 3600
+            logger.warning("🚨 [GHOSTING PROTOCOL ACTIVATED] ၁ မိနစ်အတွင်း စာ ၃ ကြောင်း ဆက်တိုက်ဝင်လာသဖြင့် ၁ နာရီတိတိ Mute ချလိုက်ပါပြီ။")
+            return
+
         user_text = f"[SYSTEM NOTE: VIP - GIRLFRIEND] {user_text}"
 
     # Chat History (၁၀ ကြောင်း) ဆွဲထုတ်ခြင်း
@@ -64,8 +86,8 @@ async def process_secretary_reply(client, chat_id, user_name, user_text, is_bot=
     real_history.reverse()
     formatted_history = "\n".join(real_history)
 
-    # AI Brain သို့ ပို့ခြင်း
-    reply_text = await brain.reply(user_name, user_text, formatted_history)
+    # AI Brain သို့ ပို့ခြင်း (chat_id ကိုပါ ထည့်ပေးလိုက်ပါ)
+    reply_text = await brain.reply(chat_id, user_name, user_text, formatted_history)
 
     if reply_text:
         await client.send_message(chat_id, reply_text)
@@ -74,25 +96,50 @@ async def process_secretary_reply(client, chat_id, user_name, user_text, is_bot=
         logger.info(f"✅ Secretary successfully replied to {user_name}")
 
 async def handle_incoming_messages(client, message):
-    """သာမန် စာဝင်လာလျှင် ဖမ်းမည့် Handler"""
+    """စာနှင့် ပုံများကို ဖမ်းယူမည့် Handler အသစ် (CEO Architecture အတိုင်း)"""
     try:
-        if getattr(message, "service", False): return # Service များကို RawUpdate ကသာ ရှင်းမည်
+        if getattr(message, "service", False): return 
         
-        # 🚀 THE FIX: Strict Content Validation (စာသားရော၊ Media ပါ မရှိလျှင် Call Log အဖြစ် သတ်မှတ်ပြီး ပယ်ချမည်)
-        if not message.text and not message.media:
-            logger.info("👻 Ghost Message (Video Call Ended / System Log) detected. Dropping instantly.")
-            return
-            
         chat_id = message.chat.id
         user_name = message.from_user.first_name if message.from_user else "Guest"
-        user_text = message.text or "[Media/Sticker/Voice Attached]"
         is_bot = message.from_user.is_bot if message.from_user else False
 
-        logger.info(f"📩 DEBUG: Message received from {user_name} (ID: {chat_id})")
+        user_text = ""
+        
+        if message.photo:
+            # 📸 ပုံပို့လိုက်လျှင် (CEO ကဲ့သို့ temp_media တွင် သိမ်းမည်)
+            import os
+            import time
+            from perception.media_receiver import process_incoming_image # <--- NEW: Media Receiver ကို ခေါ်သုံးမည်
+            
+            os.makedirs("workspace/temp_media", exist_ok=True)
+            # ဖိုင်နာမည် မထပ်အောင် time ကိုပါ ထည့်သုံးထားသည်
+            file_path = os.path.join("workspace", "temp_media", f"img_{chat_id}_{int(time.time())}.jpg")
+            
+            logger.info(f"📸 Downloading photo from {user_name}...")
+            await message.download(file_name=file_path)
+            
+            caption = message.caption or message.text or ""
+            
+            # 🚀 CEO ပုံစံအတိုင်း Media Receiver ဆီသို့ ပို့ပြီး Context ပြောင်းမည်
+            user_text = await process_incoming_image(file_path, caption)
+            
+        elif message.text:
+            # ✍️ ရိုးရိုး စာပို့လိုက်လျှင်
+            user_text = message.text
+            
+        # စာရော၊ ပုံရော မပါရင် ပယ်ချမည်
+        if not user_text and not message.media:
+            logger.info("👻 Ghost Message (Video Call Ended / System Log) detected. Dropping instantly.")
+            return
+
+        logger.info(f"📩 DEBUG: Message/Media received from {user_name} (ID: {chat_id})")
+        
+        # Secretary Brain ဆီသို့ ပို့လွှတ်ခြင်း
         await process_secretary_reply(client, chat_id, user_name, user_text, is_bot)
 
     except Exception as e:
-        logger.error(f"❌ Secretary Error handling text message: {e}")
+        logger.error(f"❌ Secretary Error handling message: {e}")
 
 async def handle_raw_updates(client, update, users, chats):
     """🛑 THE ULTIMATE FIX: String-based MTProto Parser (2026 Developer Method)"""

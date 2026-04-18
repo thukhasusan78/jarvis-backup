@@ -23,8 +23,8 @@ async def process_incoming_image(file_path: str, caption: str = "") -> str:
     else:
         context_msg += "\n(User did not provide text. Ask the user what they want you to do with this image.)"
         
-    # ယာယီဖိုင်ကို ၅ မိနစ်နေရင် အလိုလို ဖျက်မယ့် စနစ် (Storage မပြည့်အောင်)
-    asyncio.create_task(_delete_file_later(file_path, delay=300))
+    # ယာယီဖိုင်ကို ၂၄ နာရီ (၈၆၄၀၀ စက္ကန့်) နေရင် အလိုလို ဖျက်မယ့် စနစ် 
+    asyncio.create_task(_delete_file_later(file_path, delay=86400))
     
     return context_msg
 
