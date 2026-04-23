@@ -74,6 +74,12 @@ class Config:
     TIMEZONE = pytz.timezone('Asia/Yangon')
 
     # ==========================================
+    # 🔐 USERBOT / PYROGRAM CONFIGS
+    # ==========================================
+    API_ID = int(os.getenv("API_ID", 0))
+    API_HASH = os.getenv("API_HASH", "")
+
+    # ==========================================
     # 🎬 MOVIE BOT CONFIGURATIONS
     # ==========================================
     TMDB_API_KEY = os.getenv("TMDB_API_KEY") 
