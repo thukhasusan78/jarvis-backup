@@ -73,5 +73,44 @@ class Config:
     PORT = int(os.getenv("PORT", 8000))
     TIMEZONE = pytz.timezone('Asia/Yangon')
 
+    # ==========================================
+    # 🎬 MOVIE BOT CONFIGURATIONS
+    # ==========================================
+    TMDB_API_KEY = os.getenv("TMDB_API_KEY") 
+    
+    # (မှတ်ချက် - TAVILY_API_KEY နဲ့ TELEGRAM_TOKEN က မူရင်း Config မှာ ပါပြီးသားမို့ ထပ်မထည့်ပါဘူး)
+
+    MONITOR_CHANNELS = [-1002861107636, -1002177243316, -1003519309429, -1002496408921, -1003542479604, -1003334073150] 
+
+    CHANNELS_CONFIG = {
+        "THUKHA_MOVIES": {
+            "main_channel_id": "@thukhamovies",          
+            "storage_id": -1003548493405,                
+            "invite_link": "https://t.me/+SvLAsuIFfx1kN2Vl",
+            "cross_promo_buttons": [
+                [{"text": "📺 Series Channel", "url": "https://t.me/thukhaseries"}],
+                [{"text": "🧸 Cartoons Channel", "url": "https://t.me/thukhacartoons"}]
+            ]
+        },
+        "THUKHA_SERIES": {
+            "main_channel_id": "@thukhaseries",          
+            "storage_id": -1003564993052,                
+            "invite_link": "https://t.me/+JwSYk3ntyZczYWI1",
+            "cross_promo_buttons": [
+                [{"text": "🎬 Movies Channel", "url": "https://t.me/thukhamovies"}],
+                [{"text": "🧸 Cartoons Channel", "url": "https://t.me/thukhacartoons"}]
+            ]
+        },
+        "THUKHA_CARTOONS": {
+            "main_channel_id": "@thukhacartoons",        
+            "storage_id": -1003824661116,                
+            "invite_link": "https://t.me/+YiQ_pMMPq6ZjMDll",
+            "cross_promo_buttons": [
+                [{"text": "🎬 Movies Channel", "url": "https://t.me/thukhamovies"}],
+                [{"text": "📺 Series Channel", "url": "https://t.me/thukhaseries"}]
+            ]
+        }
+    }
+
 # Folder တွေ မရှိရင် အလိုအလျောက် ဆောက်ပေးမယ့် code
 os.makedirs("memory", exist_ok=True)
