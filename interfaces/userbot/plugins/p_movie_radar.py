@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from pyrogram import Client, filters
+from pyrogram.raw.types import UpdateNewChannelMessage
 from config import Config
 from core.movie_engine import process_and_publish_movie
 
@@ -38,22 +39,46 @@ async def queue_worker(client):
 # ==========================================
 # 🤖 THE BRUTE-FORCE RADAR (PLUGIN VERSION)
 # ==========================================
-@Client.on_message(filters.chat(Config.MONITOR_CHANNELS))
-async def new_movie_radar(client, message):
+@Client.on_raw_update()
+async def new_movie_radar(client, update, users, chats):
     global worker_started
-    
-    # Worker မပွင့်သေးရင် ပထမဆုံး စာဝင်လာတဲ့အချိန်မှာ တစ်ခါတည်း နှိုးလိုက်မည်
+
     if not worker_started:
         asyncio.create_task(queue_worker(client))
         worker_started = True
 
-    chat_id = message.chat.id
+    # ၁။ "အထုပ်ဖြည်ပြီး" Channel Message အသစ် ဟုတ်/မဟုတ် အတိအကျ စစ်ဆေးခြင်း
+    if not isinstance(update, UpdateNewChannelMessage):
+        return
+
+    raw_msg = update.message
+    if not hasattr(raw_msg, "peer_id") or not hasattr(raw_msg, "id"):
+        return
+
+    # ၂။ Channel ID ကို ပြောင်းလဲခြင်း (-100 တပ်ပေးမှ Pyrogram ID ရပါမည်)
+    try:
+        chat_id = int(f"-100{raw_msg.peer_id.channel_id}")
+    except Exception:
+        return
+
     allowed_ids = [int(x) for x in Config.MONITOR_CHANNELS]
-    
+
     if chat_id not in allowed_ids:
         return
 
-    if not (message.video or message.document):
+    # ၃။ ID ရပြီဖြစ်၍ Pyrogram ၏ Message အစစ်ကို တိုက်ရိုက် လှမ်းဆွဲယူခြင်း
+    # (ဤသို့လုပ်ခြင်းဖြင့် အောက်ပိုင်းရှိ မူရင်း Feature များ လုံးဝမပျက်တော့ပါ)
+    try:
+        message = await client.get_messages(chat_id, raw_msg.id)
+        if not message or getattr(message, 'empty', True):
+            return
+
+        # ၄။ ဇာတ်ကားဖိုင် ဟုတ်/မဟုတ် စစ်ဆေးခြင်း
+        if not (message.video or message.document):
+            return
+
+    except Exception as e:
+        logger.error(f"❌ Radar Message Fetch Error: {e}")
         return
 
     logger.info(f"🚨 [RADAR TRIGGERED] ပစ်မှတ် Channel (ID: {chat_id}) မှ ဇာတ်ကားဖိုင် ထောက်လှမ်းမိပါပြီ!")
