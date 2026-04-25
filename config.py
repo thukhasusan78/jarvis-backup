@@ -83,8 +83,7 @@ class Config:
     # 🎬 MOVIE BOT CONFIGURATIONS
     # ==========================================
     TMDB_API_KEY = os.getenv("TMDB_API_KEY") 
-    
-    # (မှတ်ချက် - TAVILY_API_KEY နဲ့ TELEGRAM_TOKEN က မူရင်း Config မှာ ပါပြီးသားမို့ ထပ်မထည့်ပါဘူး)
+    TAVILY_API_KEY = os.getenv("TAVILY_KEY")
 
     MONITOR_CHANNELS = [-1002861107636, -1002177243316, -1003519309429, -1002496408921, -1003542479604, -1003334073150] 
 

@@ -609,22 +609,26 @@ async def process_and_publish_movie(client, source_message, raw_file_name, pre_f
 
 
 # ==========================================
-# 🛠️ CORE ENGINE ကို သီးသန့် စမ်းသပ်မည့် အပိုင်း
+# 🛠️ MOVIE ENGINE ကို သီးသန့် စမ်းသပ်မည့် အပိုင်း
 # ==========================================
 if __name__ == "__main__":
     async def run_engine_test():
         import asyncio
+        from pyrogram import Client
+        from config import Config
         print("🚀 Core Engine Test Run စတင်နေပါပြီ...")
         
-        # စက်ရုပ်များကို အသက်သွင်းမည်
+        # Publisher Bot ကို အသက်သွင်းမည်
         await start_core_clients()
         
         # ⚠️ ဒီနေရာမှာ မင်းစမ်းချင်တဲ့ Monitor Channel ID နဲ့ Message ID ကို ပြင်ထည့်ပါ
-        # ဥပမာ - Source Channel ထဲက Spider-Man ကားရဲ့ Message ID က 500 ဆိုပါစို့
-        TEST_CHANNEL_ID = -1002417226403 # (မင်းရဲ့ Source/Monitor Channel ID)
-        TEST_MESSAGE_ID = 1603            # (အဲ့ဒီ Channel ထဲက ဇာတ်ကား Message ID)
+        TEST_CHANNEL_ID = -1002316094826 
+        TEST_MESSAGE_ID = 3            
         
-        app = uploaders[0]
+        # 🌟 Test Run အတွက် Gateway Session ကို ယာယီ လှမ်းသုံးပါမည်
+        app = Client("jarvis_secretary", api_id=Config.API_ID, api_hash=Config.API_HASH, workdir="memory")
+        await app.start()
+        
         try:
             # --- [MAGIC FIX 0] Source Channel ကို မှတ်ဉာဏ်ထဲ အရင်ထည့်ခြင်း ---
             print(f"🔄 Source Channel ID ({TEST_CHANNEL_ID}) ကို တိုက်ရိုက် ချိတ်ဆက်နေပါသည်...")
@@ -633,7 +637,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"⚠️ Source Channel ကို တိုက်ရိုက်ယူ၍မရပါ။ Dialogs မှတ်ဉာဏ်ကို အတင်းခေါ်ပါမည်... (Error: {e})")
                 async for _ in app.get_dialogs():
-                    pass # မှတ်ဉာဏ်ကို အတင်း Update လုပ်မည်
+                    pass 
             
             # --- [MAGIC FIX 1] Storage Channel များကိုပါ မှတ်ဉာဏ်ထဲ ထည့်ခြင်း ---
             print("🔄 Storage Channel များကို မှတ်ဉာဏ်ထဲ ကြိုတင်ထည့်သွင်းနေပါသည်...")
@@ -643,7 +647,6 @@ if __name__ == "__main__":
                     print(f"✅ {channel_name} Storage ကို မှတ်ဉာဏ်ထဲ ထည့်ပြီးပါပြီ။")
                 except Exception as e:
                     print(f"⚠️ {channel_name} ကို တိုက်ရိုက်ယူ၍မရပါ။ (Error: {e})")
-                    # အပေါ်မှာ Dialogs ခေါ်ထားပြီးသားဖြစ်၍ ထပ်ခေါ်ရန်မလိုတော့ပါ
 
             # ၁။ Message အစစ်ကို Telegram ကနေ လှမ်းယူခြင်း
             test_msg = await app.get_messages(TEST_CHANNEL_ID, TEST_MESSAGE_ID)
@@ -657,11 +660,9 @@ if __name__ == "__main__":
                 # --- [MAJOR UPDATE] AI ကို Context အပြည့်အစုံ ပေးဖတ်မည့်စနစ် ---
                 raw_target_text = ""
                 
-                # ၁။ Video ရဲ့ Caption ကို အရင်ယူမည်
                 if test_msg.caption:
                     raw_target_text += f"[Video Caption]: {test_msg.caption}\n"
                 
-                # ၂။ အပေါ်ပို့စ် (Poster) ရဲ့ စာသားကိုပါ ထပ်ယူမည် (ID-1 ရော ID-2 ပါ စစ်မည်)
                 for offset in [1, 2]:
                     try:
                         prev_msg = await app.get_messages(TEST_CHANNEL_ID, TEST_MESSAGE_ID - offset)
@@ -672,14 +673,13 @@ if __name__ == "__main__":
                     except Exception:
                         pass
                     
-                # ၃။ ဘာစာသားမှ မပါလာခဲ့ရင်သာ ဖိုင်နာမည်ကို အရန်အနေနဲ့ ထည့်ပေးလိုက်မည်
                 if not raw_target_text.strip():
                     raw_target_text = getattr(media_obj, 'file_name', "Unknown File")
                     
                 print("\n💡 AI ထံသို့ ခွဲခြမ်းစိတ်ဖြာရန် ပို့ဆောင်နေပါသည်...")
                 
-                # အင်ဂျင်ကို အလုပ်ခိုင်းလိုက်ပါပြီ
-                await process_and_publish_movie(test_msg, raw_file_name=raw_target_text)
+                # 🌟 [အရေးကြီးဆုံး ပြင်ဆင်ချက်] `app` (client) ကို Parameter အဖြစ် ထည့်ပေးရပါမည်
+                await process_and_publish_movie(app, test_msg, raw_file_name=raw_target_text)
                 
                 print("✅ Test Run အောင်မြင်စွာ ပြီးဆုံးပါပြီ! (Storage နဲ့ Public Channel တွေကို သွားစစ်ကြည့်ပါ)")
             else:
@@ -687,7 +687,9 @@ if __name__ == "__main__":
                 
         except Exception as e:
             print(f"❌ Test Run တွင် Error တက်နေပါသည်: {e}")
+        finally:
+            await app.stop() # Test ပြီးလျှင် Session ပြန်ပိတ်ပေးမည်
             
     # Event Loop ဖြင့် Run ခြင်း
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(run_engine_test())   
+    loop.run_until_complete(run_engine_test())
