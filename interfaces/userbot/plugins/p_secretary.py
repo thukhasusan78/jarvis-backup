@@ -27,7 +27,7 @@ VIP_MUTE_UNTIL = 0
 
 brain = SecretaryBrain()
 
-@Client.on_message(filters.me & filters.private)
+@Client.on_message(filters.me & filters.private, group=2)
 async def track_human_activity(client, message):
     """ဆရာ ကိုယ်တိုင် စာဝင်ရိုက်လိုက်လျှင် မှတ်ထားမည်"""
     chat_id = message.chat.id
@@ -90,7 +90,7 @@ async def process_secretary_reply(client, chat_id, user_name, user_text, is_bot=
         await asyncio.to_thread(sql_storage.add_message, chat_id, "secretary", reply_text)
         logger.info(f"✅ Secretary successfully replied to {user_name}")
 
-@Client.on_message(filters.incoming & filters.private)
+@Client.on_message(filters.incoming & filters.private, group=3)
 async def handle_incoming_messages(client, message):
     """စာနှင့် ပုံများကို ဖမ်းယူမည့် Handler အသစ် (CEO Architecture အတိုင်း)"""
     try:
@@ -129,7 +129,7 @@ async def handle_incoming_messages(client, message):
     except Exception as e:
         logger.error(f"❌ Secretary Error handling message: {e}")
 
-@Client.on_raw_update()
+@Client.on_raw_update(group=4)
 async def handle_raw_updates(client, update, users, chats):
     """🛑 THE ULTIMATE FIX: String-based MTProto Parser"""
     try:

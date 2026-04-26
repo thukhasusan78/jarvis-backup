@@ -17,7 +17,7 @@ class Config:
     
     # --- 🧠 AI Brain Configuration ---
     # ငွေရှာမယ့် Agent ဖြစ်လို့ အမြန်ဆုံးနဲ့ စရိတ်အသက်သာဆုံး Model ကို သုံးမယ်
-    MODEL_NAME = "gemini-2.5-flash" 
+    MODEL_NAME = "gemini-3.1-flash-lite-preview" 
 
     SMART_MODEL_NAME = "gemini-3-flash-preview" # Orbit ရဲ့ 3 Pro ကို သုံးမယ်
 
@@ -85,7 +85,14 @@ class Config:
     TMDB_API_KEY = os.getenv("TMDB_API_KEY") 
     TAVILY_API_KEY = os.getenv("TAVILY_KEY")
 
-    MONITOR_CHANNELS = [-1002861107636, -1002177243316, -1003519309429, -1002496408921, -1003542479604, -1003334073150] 
+# Auto-Monitor မှ ၂၄ နာရီ စောင့်ကြည့်ရမည့် သူများ၏ Channel ID များ
+# ID: -1002861107636  =>  Name: နိုင်ငံခြားအက်ရှင်ဇာတ်ကားကောင်းများ
+# ID: -1002177243316  =>  Name: မြန်မာစာတန်းထိုးဇာတ်ကားများ (CH)
+# ID: -1003519309429  =>  Name: 𝗧𝗼𝗼𝗻𝗩𝗶𝗹𝗹𝗲
+# ID: -1002496408921  =>  Name: မြန်မာစာတန်းထိုးဇာတ်ကားစုံ
+# ID: -1003542479604  =>  Name: TZ Movies(Hollywood)
+# ID: -1003334073150  =>  Name: Rabit Movie 
+    MONITOR_CHANNELS = [-1002861107636, -1002177243316, -1003519309429, -1002496408921, -1003542479604, -1003334073150, -1003824267490] 
 
     CHANNELS_CONFIG = {
         "THUKHA_MOVIES": {

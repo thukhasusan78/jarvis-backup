@@ -622,8 +622,8 @@ if __name__ == "__main__":
         await start_core_clients()
         
         # ⚠️ ဒီနေရာမှာ မင်းစမ်းချင်တဲ့ Monitor Channel ID နဲ့ Message ID ကို ပြင်ထည့်ပါ
-        TEST_CHANNEL_ID = -1002316094826 
-        TEST_MESSAGE_ID = 3            
+        TEST_CHANNEL_ID = -1003519309429 
+        TEST_MESSAGE_ID = 539            
         
         # 🌟 Test Run အတွက် Gateway Session ကို ယာယီ လှမ်းသုံးပါမည်
         app = Client("jarvis_secretary", api_id=Config.API_ID, api_hash=Config.API_HASH, workdir="memory")

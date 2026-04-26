@@ -39,7 +39,7 @@ async def queue_worker(client):
 # ==========================================
 # 🤖 THE BRUTE-FORCE RADAR (PLUGIN VERSION)
 # ==========================================
-@Client.on_raw_update()
+@Client.on_raw_update(group=1)
 async def new_movie_radar(client, update, users, chats):
     global worker_started
 
