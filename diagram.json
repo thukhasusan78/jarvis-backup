@@ -3,21 +3,55 @@
   "author": "Anonymous coder",
   "editor": "wokwi",
   "parts": [
-    { "type": "board-esp32-s3-devkitc-1", "id": "esp", "top": 38.1, "left": -80.58, "attrs": {} },
+    {
+      "type": "board-esp32-s3-devkitc-1",
+      "id": "esp",
+      "top": -124.98,
+      "left": -110.63,
+      "attrs": {}
+    },
     {
       "type": "board-ssd1306",
       "id": "oled1",
-      "top": -73.66,
-      "left": -162.97,
+      "top": 147.14,
+      "left": -114.97,
       "attrs": { "i2cAddress": "0x3c" }
     },
-    { "type": "wokwi-mpu6050", "id": "imu1", "top": -63.38, "left": -16.88, "attrs": {} },
+    { "type": "wokwi-mpu6050", "id": "imu1", "top": -72.98, "left": -208.88, "attrs": {} },
     {
       "type": "wokwi-pushbutton",
       "id": "btn1",
-      "top": 83,
-      "left": -192,
+      "top": -51.4,
+      "left": 9.6,
       "attrs": { "color": "green", "xray": "1" }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo1",
+      "top": -11.6,
+      "left": 19.2,
+      "attrs": { "hornColor": "blue" }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo2",
+      "top": -11.6,
+      "left": -297.6,
+      "attrs": { "hornColor": "blue" }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo3",
+      "top": 84.4,
+      "left": 19.2,
+      "attrs": { "hornColor": "black" }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo4",
+      "top": 84.4,
+      "left": -297.6,
+      "attrs": { "hornColor": "black" }
     }
   ],
   "connections": [
@@ -25,14 +59,26 @@
     [ "esp:RX", "$serialMonitor:TX", "", [] ],
     [ "oled1:GND", "esp:GND.1", "black", [ "v0" ] ],
     [ "oled1:VCC", "esp:3V3.1", "red", [ "v0" ] ],
-    [ "oled1:SCL", "esp:9", "gold", [ "v0" ] ],
-    [ "oled1:SDA", "esp:8", "green", [ "v0" ] ],
+    [ "oled1:SCL", "esp:9", "green", [ "v0" ] ],
+    [ "oled1:SDA", "esp:8", "white", [ "v0" ] ],
     [ "imu1:VCC", "esp:3V3.1", "red", [ "v0" ] ],
     [ "imu1:GND", "esp:GND.1", "black", [ "v0" ] ],
-    [ "imu1:SDA", "esp:8", "green", [ "v0" ] ],
+    [ "imu1:SDA", "esp:8", "white", [ "v0" ] ],
     [ "imu1:SCL", "esp:9", "green", [ "v0" ] ],
-    [ "btn1:1.r", "esp:GND.1", "purple", [ "v0" ] ],
-    [ "btn1:2.l", "esp:10", "green", [ "h0" ] ]
+    [ "btn1:1.r", "esp:GND.1", "black", [ "v0" ] ],
+    [ "btn1:2.l", "esp:10", "purple", [ "h0" ] ],
+    [ "servo2:GND", "esp:GND.2", "black", [ "h0" ] ],
+    [ "servo1:GND", "esp:GND.2", "black", [ "h0" ] ],
+    [ "servo3:GND", "esp:GND.2", "black", [ "h0" ] ],
+    [ "servo4:GND", "esp:GND.2", "black", [ "h0" ] ],
+    [ "servo2:V+", "esp:5V", "red", [ "h0" ] ],
+    [ "servo1:V+", "esp:5V", "red", [ "h0" ] ],
+    [ "servo3:V+", "esp:5V", "red", [ "h0" ] ],
+    [ "servo4:V+", "esp:5V", "red", [ "h0" ] ],
+    [ "servo1:PWM", "esp:4", "orange", [ "h0" ] ],
+    [ "servo2:PWM", "esp:5", "gray", [ "h0" ] ],
+    [ "servo3:PWM", "esp:6", "#8f4814", [ "h0" ] ],
+    [ "servo4:PWM", "esp:7", "blue", [ "h0" ] ]
   ],
   "dependencies": {}
 }

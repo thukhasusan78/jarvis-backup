@@ -55,12 +55,44 @@ void updateEmotionEngine() {
     }
   } 
   else { 
-    // ဘာမှမလုပ်ဘဲ ၂ စက္ကန့် (2000ms) ကြာတာနဲ့ ချက်ချင်း Neutral ပြန်ပြောင်းမည် (အရင်လို ၅ စက္ကန့် အကြာကြီး မစောင့်တော့ပါ)
+    // အခြေအနေ (က) - အခုမှ စပြီး ငြိမ်သွားခြင်း 
+    // (ဘာမှမလုပ်ဘဲ ၂ စက္ကန့် ကြာလျှင် ပုံမှန် Neutral သို့ အရင်သွားမည်)
     if (!isIdle && (currentTime - lastActionTime > 2000)) {
       Serial.println(F("[Local AI] Idle -> NEUTRAL"));
       setEyeNeutral(); 
       isIdle = true;
       lastSensorState = 0;
+      lastActionTime = currentTime; // ငြိမ်သွားတဲ့ အချိန်ကို စတင်မှတ်သားမည်
+    } 
+    // အခြေအနေ (ခ) - ငြိမ်နေတာ ကြာသွားခြင်း (Idle Personality)
+    // (၇ စက္ကန့်ပြည့်တိုင်း အခြားအမူအရာတစ်ခုခုကို ကျပန်း ပြောင်းမည်)
+    else if (isIdle && (currentTime - lastActionTime > 5000)) {
+      int randomIdleEmotion = random(0, 5); // 0 မှ 4 အတွင်း ကျပန်းဂဏန်း (Random) ထုတ်မည်
+      
+      switch(randomIdleEmotion) {
+        case 0: 
+          setEyeNeutral(); 
+          Serial.println(F("[Local AI] Idle -> NEUTRAL")); 
+          break;
+        case 1: 
+          setEyeBored(); // ပျင်းရိသော
+          Serial.println(F("[Local AI] Idle -> BORED")); 
+          break;
+        case 2: 
+          setEyeSleepy(); // အိပ်ချင်သော
+          Serial.println(F("[Local AI] Idle -> SLEEPY")); 
+          break;
+        case 3: 
+          setEyeCurious(); // စပ်စုချင်သော
+          Serial.println(F("[Local AI] Idle -> CURIOUS")); 
+          break;
+        case 4: 
+          setEyeAmused(); // သဘောကျနေသော
+          Serial.println(F("[Local AI] Idle -> AMUSED")); 
+          break;
+      }
+      
+      lastActionTime = currentTime; // ၇ စက္ကန့်ကို အစကနေ ပြန်မှတ်မည်
     }
   }
 }

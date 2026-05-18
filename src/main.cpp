@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include "DisplayManager.h" // မျက်လုံးပိုင်း
 #include "EmotionEngine.h"  // အာရုံခံနှင့် ဦးနှောက်ပိုင်း
+#include "MotorManager.h"   // မော်တာပိုင်း
 #include "NetworkManager.h" // Network စနစ်
 
 #define SDA_PIN 8
@@ -10,11 +11,13 @@
 // Task Handles များ
 TaskHandle_t TaskDisplayHandle;
 TaskHandle_t TaskEmotionHandle;
+TaskHandle_t TaskMotorHandle;
 TaskHandle_t TaskNetworkHandle;
 
 // Task Functions များ
 void TaskDisplay(void *pvParameters);
 void TaskEmotion(void *pvParameters);
+void TaskMotor(void *pvParameters);
 void TaskNetwork(void *pvParameters);
 
 void setup() {
@@ -27,6 +30,7 @@ void setup() {
   // Module တစ်ခုချင်းစီကို စတင်နှိုးပါမည်
   initDisplay(); 
   initEmotionEngine(); 
+  initMotors();
   //initNetwork(); // WiFi နှင့် WebSocket စတင်မည်
 
   // FreeRTOS Tasks များ စတင်ပါမည်
@@ -35,6 +39,9 @@ void setup() {
   
   // Sensor ဖတ်သည့် Task (Priority 2)
   xTaskCreate(TaskEmotion, "Emotion_Task", 4096, NULL, 2, &TaskEmotionHandle);
+
+  // မော်တာ Task ကို Priority 2 ဖြင့် စတင်ပါမည်
+  xTaskCreate(TaskMotor, "Motor_Task", 4096, NULL, 2, &TaskMotorHandle);
 
     // Network Task ကို Priority 1 ဖြင့် စတင်ပါမည် (မျက်လုံးကို မထစ်စေရန် အနိမ့်ဆုံး Priority ပေးထားပါသည်)
   //xTaskCreate(TaskNetwork, "Network_Task", 8192, NULL, 1, &TaskNetworkHandle);
@@ -85,6 +92,22 @@ void TaskNetwork(void *pvParameters) {
     }
     
     // Network Loop ကို ထစ်မသွားစေရန် 20ms သာ နားပေးမည်
+    vTaskDelay(pdMS_TO_TICKS(20)); 
+  }
+}
+
+// =========================================================
+// TASK 4: Motor Manager (FreeRTOS)
+// =========================================================
+// DisplayManager မှ လက်ရှိ Emotion ကို လှမ်းယူရန် ကြေညာခြင်း
+extern int currentEmotion; 
+
+void TaskMotor(void *pvParameters) {
+  for (;;) {
+    // မျက်လုံး၏ လက်ရှိ Emotion အတိုင်း ခြေထောက်များကို လှုပ်ရှားစေမည်
+    updateMotors(currentEmotion); 
+
+    // မော်တာကို ချောမွေ့စေရန် 20ms (50 FPS) နှုန်းဖြင့် အမြဲ Update လုပ်မည်
     vTaskDelay(pdMS_TO_TICKS(20)); 
   }
 }
