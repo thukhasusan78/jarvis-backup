@@ -1,106 +1,125 @@
 #include "MotorManager.h"
-#include <ESP32Servo.h>
 
-Servo leftLeg;   // ဘယ် ခြေထောက် (Pin 4)
-Servo rightLeg;  // ညာ ခြေထောက် (Pin 5)
-Servo leftFoot;  // ဘယ် ခြေဖဝါး (Pin 6)
-Servo rightFoot; // ညာ ခြေဖဝါး (Pin 7)
+// ---------------------------------------------------------
+// ESP32 Native LEDC (Hardware PWM) Setting များ
+// ---------------------------------------------------------
+const int freq = 50;           // Servo Standard Frequency (50Hz)
+const int resolution = 12;     // 12-bit Resolution (0 မှ 4095 အထိ)
+
+// PWM Channel သတ်မှတ်ခြင်း (မော်တာ ၄ လုံးအတွက် 0, 1, 2, 3)
+const int CH_LL = 0; 
+const int CH_RL = 1;
+const int CH_LF = 2;
+const int CH_RF = 3;
+
+// 0 မှ 180 ဒီဂရီကို ESP32 နားလည်သော လျှပ်စစ်လှိုင်း (Duty Cycle) သို့ ပြောင်းပေးမည့် Function
+void setMotorAngle(int channel, int angle) {
+    // 500us မှ 2400us ကို 12-bit သို့ တွက်ချက်ထားခြင်း (102 မှ 491)
+    int duty = map(angle, 0, 180, 102, 491); 
+    ledcWrite(channel, duty);
+}
 
 void initMotors() {
-  // FreeRTOS နှင့် ESP32Servo အလုပ်တွဲလုပ်နိုင်ရန်
-  ESP32PWM::allocateTimer(0);
-  ESP32PWM::allocateTimer(1);
-  ESP32PWM::allocateTimer(2);
-  ESP32PWM::allocateTimer(3);
+  // Library မလိုတော့ဘဲ ESP32 ၏ Hardware ပိုင်းကို တိုက်ရိုက် အသက်သွင်းခြင်း
+  ledcSetup(CH_LL, freq, resolution);
+  ledcAttachPin(4, CH_LL);
 
-  // မော်တာများအတွက် Standard Frequency (50Hz) ကို မဖြစ်မနေ သတ်မှတ်ပေးရပါမည်
-  leftLeg.setPeriodHertz(50);
-  rightLeg.setPeriodHertz(50);
-  leftFoot.setPeriodHertz(50);
-  rightFoot.setPeriodHertz(50);
+  ledcSetup(CH_RL, freq, resolution);
+  ledcAttachPin(5, CH_RL);
 
-  // မော်တာ ၄ လုံးကို သတ်မှတ်ထားသော Pin များတွင် တပ်ဆင်ခြင်း
-  leftLeg.attach(4, 500, 2400);
-  rightLeg.attach(5, 500, 2400);
-  leftFoot.attach(6, 500, 2400);
-  rightFoot.attach(7, 500, 2400);
+  ledcSetup(CH_LF, freq, resolution);
+  ledcAttachPin(6, CH_LF);
+
+  ledcSetup(CH_RF, freq, resolution);
+  ledcAttachPin(7, CH_RF);
 
   // စတင်စတင်ချင်း မတ်တပ်ရပ်အနေအထား (၉၀ ဒီဂရီ) တွင် ထားမည်
-  leftLeg.write(90);
-  rightLeg.write(90);
-  leftFoot.write(90);
-  rightFoot.write(90);
+  setMotorAngle(CH_LL, 90);
+  setMotorAngle(CH_RL, 90);
+  setMotorAngle(CH_LF, 90);
+  setMotorAngle(CH_RF, 90);
+  
+  Serial.println("[Motor] Native Hardware PWM Ready! (No External Library Needed)");
 }
 
 void updateMotors(int emotionId) {
   unsigned long t = millis();
   
-  // Base Angle များ (၉၀ သည် ပုံမှန် မတ်တပ်ရပ်လျက်)
   int ll = 90, rl = 90, lf = 90, rf = 90; 
 
+  // Emotion အလိုက် တွက်ချက်ခြင်း (ယခင်အတိုင်း)
   switch(emotionId) {
-    case 0:  // Neutral (ပုံမှန် - အသက်ရှူသကဲ့သို့ ညင်သာစွာ လှုပ်မည်)
-    case 16: // Thinking
-      ll = 90 + sin(t / 500.0) * 5;
-      rl = 90 - sin(t / 500.0) * 5;
+    case 0:  
+    case 16: 
+      ll = 90 + sin(t / 200.0) * 30;
+      rl = 90 - sin(t / 200.0) * 30;
       break;
 
-    case 1:  // Happy (ပျော်ရွှင် - ခုန်ပေါက်နေမည်)
-    case 10: // Excited
-    case 12: // Laughing
-      lf = 90 + sin(t / 150.0) * 15; // ခြေဖဝါးများ မြန်မြန်လှုပ်မည်
-      rf = 90 - sin(t / 150.0) * 15;
-      ll = 90 + sin(t / 150.0) * 10;
-      rl = 90 - sin(t / 150.0) * 10;
+    case 1:  
+    case 10: 
+    case 12: 
+      lf = 90 + sin(t / 150.0) * 45; 
+      rf = 90 - sin(t / 150.0) * 45;
+      ll = 90 + sin(t / 150.0) * 30;
+      rl = 90 - sin(t / 150.0) * 30;
       break;
 
-    case 9:  // Dizzy (မူးဝေသော - ကမောက်ကမ ယိုင်ထိုးနေမည်)
-      ll = 90 + sin(t / 300.0) * 20;
-      rl = 90 + cos(t / 250.0) * 20;
-      lf = 90 + sin(t / 400.0) * 15;
-      rf = 90 - cos(t / 350.0) * 15;
+    case 9:  
+      ll = 90 + sin(t / 300.0) * 40;
+      rl = 90 + cos(t / 250.0) * 40;
+      lf = 90 + sin(t / 400.0) * 30;
+      rf = 90 - cos(t / 350.0) * 30;
       break;
 
-    case 5:  // Bored (ပျင်းရိသော - ဘယ်ညာ နှေးကွေးစွာ ယိမ်းနွဲ့မည်)
-      lf = 90 + sin(t / 800.0) * 15;
-      rf = 90 + sin(t / 800.0) * 15; 
+    case 5:  
+      lf = 90 + sin(t / 800.0) * 30;
+      rf = 90 + sin(t / 800.0) * 30; 
       break;
 
-    case 14: // Scared (ကြောက်ရွံ့သော - တုန်ယင်နေမည်)
-      ll = 90 + sin(t / 20.0) * 3;
-      rl = 90 - sin(t / 20.0) * 3;
-      lf = 90 + cos(t / 20.0) * 3;
-      rf = 90 - cos(t / 20.0) * 3;
+    case 14: 
+      ll = 90 + sin(t / 20.0) * 10;
+      rl = 90 - sin(t / 20.0) * 10;
+      lf = 90 + cos(t / 20.0) * 10;
+      rf = 90 - cos(t / 20.0) * 10;
       break;
 
-    case 15: // Sleepy (အိပ်ချင်သော - အောက်သို့ ကျုံ့ကျသွားမည်)
-      ll = 110 + sin(t / 1000.0) * 2;
-      rl = 70 - sin(t / 1000.0) * 2;
+    case 15: 
+      ll = 130 + sin(t / 1000.0) * 5;
+      rl = 50 - sin(t / 1000.0) * 5;
       break;
 
-    case 3:  // Angry (ဒေါသထွက် - မာထန်ထန် ရပ်နေမည်)
-    case 6:  // Confident
-    case 11: // Frustrated
-      ll = 70; rl = 110; // ရင်ကော့ထားသော အနေအထား
-      lf = 90 + sin(t / 100.0) * 5; // ဒေါသဖြင့် ခြေဆောင့်သလို တုန်မည်
-      rf = 90 - sin(t / 100.0) * 5;
+    case 3:  
+    case 6:  
+    case 11: 
+      ll = 50; rl = 130; 
+      lf = 90 + sin(t / 100.0) * 15; 
+      rf = 90 - sin(t / 100.0) * 15;
       break;
 
-    case 7:  // Confused (ဇဝေဇဝါ - ခြေတစ်ဖက် မြှောက်ထားမည်)
-    case 8:  // Curious
-      ll = 80; rl = 80; 
-      lf = 110; rf = 90; // ခေါင်းစောင်းကြည့်သလို ခြေဖဝါးတစ်ဖက် စောင်းမည်
+    case 7:  
+    case 8:  
+      ll = 70; rl = 70; 
+      lf = 130; rf = 90; 
       break;
 
-    default: // အခြားအရာများအတွက် ပုံမှန်
-      ll = 90 + sin(t / 400.0) * 3;
-      rl = 90 - sin(t / 400.0) * 3;
+    default: 
+      ll = 90 + sin(t / 400.0) * 10;
+      rl = 90 - sin(t / 400.0) * 10;
       break;
   }
 
-  // တွက်ချက်ရရှိသော ဒီဂရီများကို မော်တာများဆီသို့ တကယ် ပို့လွှတ်ခြင်း
-  leftLeg.write(ll);
-  rightLeg.write(rl);
-  leftFoot.write(lf);
-  rightFoot.write(rf);
+  // Simulator ကို မလိုအပ်ဘဲ အလုပ်မရှုပ်စေရန်၊ ပြောင်းလဲသွားမှသာ အမိန့်ပေးမည်
+  static int last_ll = -1, last_rl = -1, last_lf = -1, last_rf = -1;
+
+  if (ll != last_ll) { setMotorAngle(CH_LL, ll); last_ll = ll; }
+  if (rl != last_rl) { setMotorAngle(CH_RL, rl); last_rl = rl; }
+  if (lf != last_lf) { setMotorAngle(CH_LF, lf); last_lf = lf; }
+  if (rf != last_rf) { setMotorAngle(CH_RF, rf); last_rf = rf; }
+  
+  // Debugging
+  static unsigned long lastPrint = 0;
+  if (t - lastPrint > 1000) { 
+      Serial.printf("[Motor] Emotion ID: %d | Left Leg Angle: %d\n", emotionId, ll);
+      lastPrint = t;
+  }
 }
