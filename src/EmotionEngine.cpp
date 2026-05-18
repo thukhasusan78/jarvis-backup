@@ -28,39 +28,39 @@ void updateEmotionEngine() {
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
-  // ၁။ MPU6050 လှုပ်ရှားမှုကို တွက်ချက်ခြင်း (Acceleration)
   float totalAccel = abs(a.acceleration.x) + abs(a.acceleration.y) + abs(a.acceleration.z) - 9.8;
-  
-  // ၂။ Touch Sensor ဖတ်ခြင်း
   bool isTouched = (digitalRead(TOUCH_PIN) == LOW);
-
   unsigned long currentTime = millis();
 
-  // ==========================================
-  // Local AI Decision Logic (0 Latency)
-  // ==========================================
+  // Sensor မှတ်ဉာဏ် (ယခင်လုပ်ခဲ့သော အခြေအနေကို မှတ်ထားရန်)
+  static int lastSensorState = 0; // 0=Neutral, 1=Touched, 2=Shaking
 
-  if (totalAccel > 5.0) { // အကြမ်းပတမ်း လှုပ်ခံရလျှင် (တန်ဖိုး ၅ ကျော်လျှင်)
-    if (isIdle || (currentTime - lastActionTime > 3000)) {
+  if (totalAccel > 5.0) { 
+    // အရင်က Happy ဖြစ်နေရင်တောင် အကြမ်းပတမ်းလှုပ်တာကို ဦးစားပေးပြီး ချက်ချင်း ဖြတ်ဝင်မည် (Interrupt)
+    if (lastSensorState != 2 || (currentTime - lastActionTime > 2000)) {
       Serial.println(F("[Local AI] Shaking! -> DIZZY"));
-      setEyeDizzy(); // ခေါင်းမူးသွားပါမည်
+      setEyeDizzy(); 
       lastActionTime = currentTime;
       isIdle = false;
+      lastSensorState = 2;
     }
   } 
-  else if (isTouched) { // ခေါင်းကို ပွတ်လျှင် / ခလုတ်နှိပ်လျှင်
-    if (isIdle || (currentTime - lastActionTime > 3000)) {
+  else if (isTouched) { 
+    if (lastSensorState != 1 || (currentTime - lastActionTime > 2000)) {
       Serial.println(F("[Local AI] Touched! -> HAPPY"));
-      setEyeHappy(); // ပြုံးပါမည်
+      setEyeHappy(); 
       lastActionTime = currentTime;
       isIdle = false;
+      lastSensorState = 1;
     }
   } 
-  else { // ဘာမှမလုပ်ဘဲ ၅ စက္ကန့် ကြာသွားလျှင်
-    if (!isIdle && (currentTime - lastActionTime > 5000)) {
+  else { 
+    // ဘာမှမလုပ်ဘဲ ၂ စက္ကန့် (2000ms) ကြာတာနဲ့ ချက်ချင်း Neutral ပြန်ပြောင်းမည် (အရင်လို ၅ စက္ကန့် အကြာကြီး မစောင့်တော့ပါ)
+    if (!isIdle && (currentTime - lastActionTime > 2000)) {
       Serial.println(F("[Local AI] Idle -> NEUTRAL"));
-      setEyeNeutral(); // ပုံမှန် မျက်လုံး ပြန်ဖြစ်ပါမည်
+      setEyeNeutral(); 
       isIdle = true;
+      lastSensorState = 0;
     }
   }
 }

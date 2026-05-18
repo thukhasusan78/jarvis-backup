@@ -27,7 +27,7 @@ void setup() {
   // Module တစ်ခုချင်းစီကို စတင်နှိုးပါမည်
   initDisplay(); 
   initEmotionEngine(); 
-  initNetwork(); // WiFi နှင့် WebSocket စတင်မည်
+  //initNetwork(); // WiFi နှင့် WebSocket စတင်မည်
 
   // FreeRTOS Tasks များ စတင်ပါမည်
   // မျက်လုံး Task (Priority 3 - အရေးအကြီးဆုံး)
@@ -37,7 +37,7 @@ void setup() {
   xTaskCreate(TaskEmotion, "Emotion_Task", 4096, NULL, 2, &TaskEmotionHandle);
 
     // Network Task ကို Priority 1 ဖြင့် စတင်ပါမည် (မျက်လုံးကို မထစ်စေရန် အနိမ့်ဆုံး Priority ပေးထားပါသည်)
-  xTaskCreate(TaskNetwork, "Network_Task", 8192, NULL, 1, &TaskNetworkHandle);
+  //xTaskCreate(TaskNetwork, "Network_Task", 8192, NULL, 1, &TaskNetworkHandle);
 
   Serial.println("FreeRTOS Running...");
 }
