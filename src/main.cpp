@@ -61,22 +61,10 @@ void TaskDisplay(void *pvParameters) {
 // =========================================================
 void TaskEmotion(void *pvParameters) {
   for (;;) {
-    // ၁။ Sensor များကို ဖတ်ပြီး စိတ်ခံစားချက်ကို တွက်ချက်ပါမည်
+    // ၁။ Sensor များကို ဖတ်ပြီး EmotionEngine.cpp ထဲတွင် မျက်လုံးများကို တိုက်ရိုက် ပြောင်းလဲပါမည်
     updateEmotionEngine(); 
 
-    // ၂။ တွက်ချက်ပြီး ရလာသော Mood ကို ယူပါမည်
-    MoodState currentMood = getCurrentMood(); 
-
-    // ၃။ ထို Mood အတိုင်း မျက်လုံးကို ပြောင်းလဲပေးပါမည်
-    if (currentMood == MOOD_HAPPY) {
-      setEyeHappy();
-    } else if (currentMood == MOOD_ANGRY) {
-      setEyeAngry();
-    } else {
-      setEyeNeutral();
-    }
-
-    // ၁၀၀ မီလီစက္ကန့် (0.1 စက္ကန့်) တစ်ခါ Sensor များ ဖတ်ပါမည်
+    // ၂။ ၁၀၀ မီလီစက္ကန့် (0.1 စက္ကန့်) တစ်ခါ Sensor များ ဖတ်ပါမည် (Delay မဟုတ်ပါ၊ Task Delay ပါ)
     vTaskDelay(pdMS_TO_TICKS(100)); 
   }
 }

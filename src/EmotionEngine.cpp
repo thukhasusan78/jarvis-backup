@@ -1,24 +1,25 @@
 #include "EmotionEngine.h"
+#include "DisplayManager.h"
 #include <Wire.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 
-#define TOUCH_PIN 10 // Touch Sensor ချိတ်ထားသော Pin
+#define TOUCH_PIN 10 // Diagram အရ Pin 10 တွင် ချိတ်ထားပါသည်
 
 Adafruit_MPU6050 mpu;
 
-// Emotion Engine Variables
-float valence = 0.0;
-float arousal = 0.0;
-MoodState currentMood = MOOD_NEUTRAL;
+// AI ဆုံးဖြတ်ချက်အတွက် အချိန်မှတ်စနစ်
+unsigned long lastActionTime = 0;
+bool isIdle = true; 
 
 void initEmotionEngine() {
   pinMode(TOUCH_PIN, INPUT_PULLUP); // Touch pin ကို ဖွင့်ပါမည်
 
-  // MPU6050 Sensor ကို စတင်ပါမည် (I2C လမ်းကြောင်းက main.cpp မှာ ဖွင့်ထားပြီးသားကို ယူသုံးမည်)
+  // main.cpp တွင် Wire.begin(8, 9) ဖွင့်ထားပြီးဖြစ်၍ &Wire ကိုသာ ယူသုံးပါမည်
   if (!mpu.begin(0x68, &Wire)) {
-    Serial.println(F("MPU6050 failed to start!"));
+    Serial.println(F("[Local AI] MPU6050 failed to start!"));
   } else {
+    Serial.println(F("[Local AI] MPU6050 Ready!"));
     mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   }
 }
@@ -27,37 +28,39 @@ void updateEmotionEngine() {
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
-  // ၁။ လှုပ်ရှားမှုကို တွက်ချက်ခြင်း (Arousal)
+  // ၁။ MPU6050 လှုပ်ရှားမှုကို တွက်ချက်ခြင်း (Acceleration)
   float totalAccel = abs(a.acceleration.x) + abs(a.acceleration.y) + abs(a.acceleration.z) - 9.8;
-  if (totalAccel > 5.0) { 
-    arousal += 2.0; 
-    valence -= 1.0; 
+  
+  // ၂။ Touch Sensor ဖတ်ခြင်း
+  bool isTouched = (digitalRead(TOUCH_PIN) == LOW);
+
+  unsigned long currentTime = millis();
+
+  // ==========================================
+  // Local AI Decision Logic (0 Latency)
+  // ==========================================
+
+  if (totalAccel > 5.0) { // အကြမ်းပတမ်း လှုပ်ခံရလျှင် (တန်ဖိုး ၅ ကျော်လျှင်)
+    if (isIdle || (currentTime - lastActionTime > 3000)) {
+      Serial.println(F("[Local AI] Shaking! -> DIZZY"));
+      setEyeDizzy(); // ခေါင်းမူးသွားပါမည်
+      lastActionTime = currentTime;
+      isIdle = false;
+    }
+  } 
+  else if (isTouched) { // ခေါင်းကို ပွတ်လျှင် / ခလုတ်နှိပ်လျှင်
+    if (isIdle || (currentTime - lastActionTime > 3000)) {
+      Serial.println(F("[Local AI] Touched! -> HAPPY"));
+      setEyeHappy(); // ပြုံးပါမည်
+      lastActionTime = currentTime;
+      isIdle = false;
+    }
+  } 
+  else { // ဘာမှမလုပ်ဘဲ ၅ စက္ကန့် ကြာသွားလျှင်
+    if (!isIdle && (currentTime - lastActionTime > 5000)) {
+      Serial.println(F("[Local AI] Idle -> NEUTRAL"));
+      setEyeNeutral(); // ပုံမှန် မျက်လုံး ပြန်ဖြစ်ပါမည်
+      isIdle = true;
+    }
   }
-
-  // ၂။ ထိတွေ့မှုကို ဖတ်ခြင်း (Valence)
-  if (digitalRead(TOUCH_PIN) == LOW) {
-    valence += 1.5; 
-    arousal -= 0.5; 
-  }
-
-  // ၃။ စိတ်ခံစားချက် တဖြည်းဖြည်း ပြန်ငြိမ်သွားစေရန် (Decay)
-  valence *= 0.95; 
-  arousal *= 0.95;
-
-  // ကန့်သတ်ချက် (-10 မှ 10 အတွင်း)
-  valence = constrain(valence, -10.0, 10.0);
-  arousal = constrain(arousal, -10.0, 10.0);
-
-  // ၄။ တွက်ချက်ထားသော တန်ဖိုးများပေါ်မူတည်၍ Mood သတ်မှတ်ခြင်း
-  if (valence > 4.0) {
-    currentMood = MOOD_HAPPY;
-  } else if (arousal > 6.0 && valence < -2.0) {
-    currentMood = MOOD_ANGRY;
-  } else {
-    currentMood = MOOD_NEUTRAL;
-  }
-}
-
-MoodState getCurrentMood() {
-  return currentMood; // လက်ရှိ Mood ကို လှမ်းတောင်းရင် ပြန်ပို့ပေးပါမည်
 }
