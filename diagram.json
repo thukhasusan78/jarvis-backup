@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "author": "Anonymous coder",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-s3-devkitc-1", "id": "esp", "top": 38.1, "left": -80.58, "attrs": {} },
+    {
+      "type": "board-ssd1306",
+      "id": "oled1",
+      "top": -73.66,
+      "left": -162.97,
+      "attrs": { "i2cAddress": "0x3c" }
+    },
+    { "type": "wokwi-mpu6050", "id": "imu1", "top": -63.38, "left": -16.88, "attrs": {} },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 83,
+      "left": -192,
+      "attrs": { "color": "green", "xray": "1" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "oled1:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "oled1:VCC", "esp:3V3.1", "red", [ "v0" ] ],
+    [ "oled1:SCL", "esp:9", "gold", [ "v0" ] ],
+    [ "oled1:SDA", "esp:8", "green", [ "v0" ] ],
+    [ "imu1:VCC", "esp:3V3.1", "red", [ "v0" ] ],
+    [ "imu1:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "imu1:SDA", "esp:8", "green", [ "v0" ] ],
+    [ "imu1:SCL", "esp:9", "green", [ "v0" ] ],
+    [ "btn1:1.r", "esp:GND.1", "purple", [ "v0" ] ],
+    [ "btn1:2.l", "esp:10", "green", [ "h0" ] ]
+  ],
+  "dependencies": {}
+}
