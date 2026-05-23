@@ -4,6 +4,7 @@
 #include "EmotionEngine.h"  // အာရုံခံနှင့် ဦးနှောက်ပိုင်း
 #include "MotorManager.h"   // မော်တာပိုင်း
 #include "NetworkManager.h" // Network စနစ်
+#include "AudioManager.h" // <--- အသ
 
 #define SDA_PIN 8
 #define SCL_PIN 9
@@ -13,12 +14,14 @@ TaskHandle_t TaskDisplayHandle;
 TaskHandle_t TaskEmotionHandle;
 TaskHandle_t TaskMotorHandle;
 TaskHandle_t TaskNetworkHandle;
+TaskHandle_t TaskAudioHandle;
 
 // Task Functions များ
 void TaskDisplay(void *pvParameters);
 void TaskEmotion(void *pvParameters);
 void TaskMotor(void *pvParameters);
 void TaskNetwork(void *pvParameters);
+void TaskAudio(void *pvParameters);
 
 void setup() {
   Serial.begin(115200);
@@ -31,20 +34,16 @@ void setup() {
   initDisplay(); 
   initEmotionEngine(); 
   initMotors();
-  //initNetwork(); // WiFi နှင့် WebSocket စတင်မည်
+  initAudio();
+  initNetwork(); // WiFi နှင့် WebSocket စတင်မည်
 
-  // FreeRTOS Tasks များ စတင်ပါမည်
-  // မျက်လုံး Task (Priority 3 - အရေးအကြီးဆုံး)
   xTaskCreate(TaskDisplay, "Display_Task", 4096, NULL, 3, &TaskDisplayHandle);
-  
-  // Sensor ဖတ်သည့် Task (Priority 2)
   xTaskCreate(TaskEmotion, "Emotion_Task", 4096, NULL, 2, &TaskEmotionHandle);
-
-  // မော်တာ Task ကို Priority 2 ဖြင့် စတင်ပါမည်
   xTaskCreate(TaskMotor, "Motor_Task", 4096, NULL, 2, &TaskMotorHandle);
-
-    // Network Task ကို Priority 1 ဖြင့် စတင်ပါမည် (မျက်လုံးကို မထစ်စေရန် အနိမ့်ဆုံး Priority ပေးထားပါသည်)
-  //xTaskCreate(TaskNetwork, "Network_Task", 8192, NULL, 1, &TaskNetworkHandle);
+  
+  // Network နှင့် Audio သည် Memory ပိုစားသဖြင့် 8192 bytes ပေးထားပါသည်
+  xTaskCreate(TaskNetwork, "Network_Task", 8192, NULL, 1, &TaskNetworkHandle);
+  xTaskCreate(TaskAudio, "Audio_Task", 8192, NULL, 2, &TaskAudioHandle);
 
   Serial.println("FreeRTOS Running...");
 }
@@ -109,5 +108,15 @@ void TaskMotor(void *pvParameters) {
 
     // မော်တာကို ချောမွေ့စေရန် 20ms (50 FPS) နှုန်းဖြင့် အမြဲ Update လုပ်မည်
     vTaskDelay(pdMS_TO_TICKS(20)); 
+  }
+}
+
+// =========================================================
+// TASK 5: Audio Manager (FreeRTOS)
+// =========================================================
+void TaskAudio(void *pvParameters) {
+  for (;;) {
+    updateAudio(); // သီချင်းကို တစ်ပိုင်းချင်းစီ အမြဲ Stream ဆွဲနေမည်
+    vTaskDelay(pdMS_TO_TICKS(5)); // Stream မပြတ်သွားစေရန် 5ms သာ နားမည်
   }
 }

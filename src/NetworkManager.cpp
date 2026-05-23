@@ -1,10 +1,11 @@
 #include "NetworkManager.h"
 #include <WiFi.h>
 #include <WebSocketsClient.h>
-#include "DisplayManager.h" // မျက်လုံးကို လှမ်းထိန်းချုပ်ရန် ထည့်သွင်းခြင်း
+#include "DisplayManager.h" 
+#include "AudioManager.h"
 
-const char* ssid = "Wokwi-GUEST"; 
-const char* password = "";
+const char* ssid = "U Myat Phone"; 
+const char* password = "Gbank8028";
 
 // ဤနေရာတွင် မင်းရဲ့ VPS IP ကို ပြန်ထည့်ပေးပါ
 const char* ws_host = "103.47.227.135"; 
@@ -24,20 +25,28 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     case WStype_TEXT:
       Serial.printf("[Network] Message from Brain: %s\n", payload);
       
-      // ဆာဗာမှ ဝင်လာသော JSON ကို ဖတ်ခြင်း
-      StaticJsonDocument<200> doc;
+      StaticJsonDocument<256> doc;
       DeserializationError error = deserializeJson(doc, payload);
       
       if (!error) {
-        const char* anim = doc["animation"];
-        if (anim) {
-          // Animation နာမည်ပေါ်မူတည်၍ မျက်လုံး ပြောင်းလဲပေးခြင်း
-          if (strcmp(anim, "HAPPY") == 0) {
-             setEyeHappy();
-          } else if (strcmp(anim, "ANGRY") == 0) {
-             setEyeAngry();
-          } else {
-             setEyeNeutral();
+        const char* action = doc["action"];
+        
+        if (action) {
+          // ၁။ Action သည် သီချင်းဖွင့်ရန် (play_audio) ဖြစ်လျှင်
+          if (strcmp(action, "play_audio") == 0) {
+            const char* url = doc["url"];
+            if (url) {
+               playAudioStream(url); // အသံ Stream စတင်ဆွဲမည်
+            }
+          } 
+          // ၂။ Action သည် မျက်နှာအမူအရာပြောင်းရန် (play_animation) ဖြစ်လျှင်
+          else if (strcmp(action, "play_animation") == 0) {
+            const char* anim = doc["animation"];
+            if (anim) {
+              if (strcmp(anim, "HAPPY") == 0) setEyeHappy();
+              else if (strcmp(anim, "ANGRY") == 0) setEyeAngry();
+              else setEyeNeutral();
+            }
           }
         }
       }

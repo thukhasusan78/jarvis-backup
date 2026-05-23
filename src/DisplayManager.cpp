@@ -51,7 +51,7 @@ void updateDisplay() {
 
     // ပုံမှန်အခြေအနေ (Neutral) တွင်သာ မျက်လုံးကစားပါမည်
     if (currentEmotion == 0 && !isTransitioning) {
-        if (millis() - lastLookTime > 1000) { 
+        if (millis() - lastLookTime > 3000) { 
             offsetX = random(-4, 5); // -4 မှ 4 အတွင်း ဘယ်/ညာ
             offsetY = random(-3, 4); // -3 မှ 3 အတွင်း အထက်/အောက်
             lastLookTime = millis();
@@ -93,7 +93,7 @@ void updateDisplay() {
     static bool isBlinking = false;
     
     // Wokwi Simulator နှေးနေမှုကို ကာဗာလုပ်ရန် 1000ms ဖြင့် ယာယီထားပါသည်
-    if (millis() - lastBlink > 2000 && !isTransitioning) { 
+    if (millis() - lastBlink > 3000 && !isTransitioning) { 
         isBlinking = true;
         lastBlink = millis();
     }
