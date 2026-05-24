@@ -57,12 +57,23 @@ void updateEmotionEngine() {
     }
   } 
   else { 
-    // အရုပ် လှုပ်ရှားမှုပြီး၍ ငြိမ်သွားပါက (၃ စက္ကန့်အကြာတွင်) ပုံမှန် အချိန်ဇယားစနစ်သို့ ပြန်သွားမည်
-    if (!isIdle && (currentTime - lastActionTime > 3000)) {
-      Serial.println(F("[Local AI] Idle -> Returning to Daily Schedule"));
-      isIdle = true;
-      lastSensorState = 0;
-      lastActionTime = currentTime; 
+    // အရုပ် လှုပ်ရှားမှုပြီး၍ ငြိမ်သွားပါက
+    if (!isIdle) {
+      // (၁) လှုပ်ရမ်းခံရပြီး (Dizzy ပြီး) ပါက ချက်ချင်း စိတ်တိုသော မျက်လုံး (ANGRY) သို့ ပြောင်းမည်
+      if (lastSensorState == 2 && (currentTime - lastActionTime > 3000)) {
+        Serial.println(F("[Local AI] Stop Shaking -> ANGRY"));
+        setEyeAngry(); 
+        lastSensorState = 3; // Angry State သို့ ပြောင်းမည်
+        lastActionTime = currentTime;
+      }
+      // (၂) ဒေါသထွက်တာ ၂ စက္ကန့်ပြည့်သွားလျှင် (သို့) ထိတွေ့မှု (Touched) ၃ စက္ကန့်ပြည့်သွားလျှင် ပုံမှန်ပြန်ဖြစ်မည်
+      else if ((lastSensorState == 3 && currentTime - lastActionTime > 2000) || 
+               (lastSensorState == 1 && currentTime - lastActionTime > 3000)) {
+        Serial.println(F("[Local AI] Idle -> Returning to Daily Schedule"));
+        isIdle = true;
+        lastSensorState = 0;
+        lastActionTime = currentTime; 
+      }
     } 
     
     // --- 🕰️ နေ့စဉ်ဘဝ အချိန်ဇယားစနစ် (Daily Routine Schedule Logic) ---

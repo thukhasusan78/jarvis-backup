@@ -58,30 +58,34 @@ void updateDisplay() {
     static bool isBooting = true;        // Power စဖွင့်ချိန်
     static float bootEyeHeight = -36.0;  // မျက်လုံးအမြင့်ကို အနှုတ် (ပိတ်ထားသည်) မှ စမည်
     static bool isIdleAction = false;    // Action နှင့် Neutral ကို တစ်လှည့်စီပြရန်
+    static int nextActionDelay = 3000;   // 👈 အသစ် - နောက်အမူအရာပြရန် စောင့်မည့်အချိန်ကို မှတ်သားရန်
 
     // (၁) Power ပေးပေးချင်း ညင်သာစွာ မျက်လုံးဖွင့်ခြင်း (Boot Animation)
     if (isBooting) {
-        bootEyeHeight += 0.8; // ဖြည်းဖြည်းချင်း ပွင့်လာစေရန် (0.8 သည် အသင့်တော်ဆုံးဖြစ်သည်)
+        bootEyeHeight += 0.8; 
         cur_hl = bootEyeHeight;
         cur_hr = bootEyeHeight;
         if (bootEyeHeight >= 0) {
             cur_hl = 0; cur_hr = 0;
             isBooting = false;
-            lastLookTime = millis(); // မျက်လုံးအပြည့် ပွင့်ပြီးသည်နှင့် ၃ စက္ကန့် စောင့်ရန် အချိန်မှတ်မည်
+            lastLookTime = millis(); 
+            nextActionDelay = 3000; // 👈 Boot ပြီးသည်နှင့် ၃ စက္ကန့် သီးသန့်စောင့်မည်
         }
     } 
     // (၂) ပုံမှန် Neutral အခြေအနေတွင် အသက်ဝင်အောင် မျက်လုံးကစားခြင်း
     else if (currentEmotion == 0 && !isTransitioning && !isBlinking) {
         if (isIdleAction) {
-            // အမူအရာ တစ်ခုခု လုပ်နေပါက၊ ၁.၅ စက္ကန့် မှ ၂.၅ စက္ကန့်အကြာတွင် Neutral သို့ အလိုအလျောက် ပြန်သွားမည်
+            // အမူအရာပြပြီးပါက၊ ၁.၅ စက္ကန့် မှ ၂.၅ စက္ကန့်အကြာတွင် Neutral သို့ ပြန်သွားမည်
             if (millis() - lastLookTime > random(1500, 2500)) {
                 tg_x = 0; tg_y = 0; tg_wl = 0; tg_hl = 0; tg_wr = 0; tg_hr = 0;
-                isIdleAction = false; // Neutral သို့ ပြန်ရောက်ပြီ
-                lastLookTime = millis(); // Neutral တွင် အနည်းဆုံး ၃ စက္ကန့် စောင့်ရန် အချိန်မှတ်မည်
+                isIdleAction = false; 
+                lastLookTime = millis(); 
+                // 👈 Neutral ပြန်ရောက်တိုင်း ၃ စက္ကန့် မစောင့်တော့ဘဲ၊ ၀.၅ မှ ၁.၅ စက္ကန့်သာ စောင့်မည်
+                nextActionDelay = random(500, 1500); 
             }
         } else {
-            // Neutral သို့ ရောက်နေပါက၊ ၃ စက္ကန့် (3000ms) ပြည့်မှသာ အမူအရာအသစ် ထပ်ပြမည်
-            if (millis() - lastLookTime > 3000) {
+            // သတ်မှတ်ထားသော အချိန် (nextActionDelay) ပြည့်မှသာ အမူအရာအသစ် ထပ်ပြမည်
+            if (millis() - lastLookTime > nextActionDelay) {
                 int action = random(1, 14); 
                 
                 tg_x = 0; tg_y = 0; tg_wl = 0; tg_hl = 0; tg_wr = 0; tg_hr = 0;
@@ -130,7 +134,15 @@ void updateDisplay() {
     // ----------------------------------------------------
     int renderEmotion = isTransitioning ? lastRenderedEmotion : currentEmotion;
 
-    if (renderEmotion == 8) { lx += 8; rx -= 8; w += 2; } 
+    if (renderEmotion == 3) { 
+        // 😡 Angry (Detailed): မျက်မှောင်ကုတ်ကာ ဒေါသတကြီး တဆတ်ဆတ် တုန်နေမည်
+        h = 22; y = 18; 
+        lx += 6; rx -= 6; // မျက်လုံးကို အလယ်သို့ စုလိုက်မည် (ဒေါသထွက်နေသဖြင့် မျက်မှောင်ကုတ်ခြင်း)
+        int rageShake = sin(millis() / 20.0) * 2; // အလွန်မြန်သော တဆတ်ဆတ် တုန်ခါမှု
+        lx += rageShake; rx += rageShake; 
+        y += rageShake;
+    }
+    else if (renderEmotion == 8) { lx += 8; rx -= 8; w += 2; } 
     else if (renderEmotion == 9) { 
         // 😵 Dizzy: မူးဝေနေသဖြင့် မျက်လုံးများ မှေးကျဉ်းပြီး ဟိုဒီယိမ်းထိုးနေမည်
         h = 16; 
@@ -203,6 +215,14 @@ void updateDisplay() {
         
         if (isTransitioning && millis() - transitionTimer > 120) {
             isTransitioning = false;
+            
+            // 👈 Sensor အမူအရာ (သို့) Routine များမှ Neutral သို့ ပြန်ရောက်သောအခါ ၃ စက္ကန့် သီးသန့် စောင့်ရန်
+            if (currentEmotion == 0 && lastRenderedEmotion != 0) {
+                isIdleAction = false;
+                lastLookTime = millis();
+                nextActionDelay = 3000; 
+            }
+            
             lastRenderedEmotion = currentEmotion;
         }
     } else {
