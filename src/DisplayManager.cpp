@@ -131,11 +131,30 @@ void updateDisplay() {
     int renderEmotion = isTransitioning ? lastRenderedEmotion : currentEmotion;
 
     if (renderEmotion == 8) { lx += 8; rx -= 8; w += 2; } 
-    else if (renderEmotion == 9) { y = 18; h = 24; lx -= 4; rx += 4; } 
+    else if (renderEmotion == 9) { 
+        // 😵 Dizzy: မူးဝေနေသဖြင့် မျက်လုံးများ မှေးကျဉ်းပြီး ဟိုဒီယိမ်းထိုးနေမည်
+        h = 16; 
+        y = 24; // မျက်လုံးကို အပေါ်မကပ်နေစေရန် စခရင်အလယ်သို့ အောက်ချလိုက်သည်
+        
+        unsigned long ms = millis();
+        int shakeX = sin(ms / 40.0) * 8; // ဘယ်ညာ ပိုပြီး ကျယ်ကျယ် ယိမ်းမည်
+        int shakeY = cos(ms / 30.0) * 6; // အပေါ်အောက် ပိုပြီး သိသာအောင် ယိမ်းမည်
+        
+        lx += shakeX; rx += shakeX;
+        y += shakeY;
+    } 
     else if (renderEmotion == 10) { h = 38; y = 10; } 
     else if (renderEmotion == 14) { w = 24; h = 24; y = 24; lx += 6; rx += 6; } 
     else if (renderEmotion == 16) { lx += 10; rx += 10; y = 6; }
-    else if (renderEmotion == 20) { h = 6; y = 6; lx += 4; rx -= 4; } // Alarm
+    else if (renderEmotion == 20) { 
+        // ⏰ Alarm: မျက်လုံးများ ဘေးသို့ကားပြီး ခေါင်းလောင်းနှင့်အတူ တုန်ခါမည်
+        h = 6; 
+        y = 18; // ခေါင်းလောင်းနှင့် နီးသွားအောင် အောက်သို့ နည်းနည်း ချလိုက်သည်
+        
+        int eyeShake = sin(millis() / 30.0) * 3; // မျက်လုံးပါ တုန်ခါစေရန်
+        lx = lx - 4 + eyeShake; // မျက်လုံးများကို ဘေးသို့ နည်းနည်းခွဲထုတ်ပြီး တုန်ခါမည်
+        rx = rx + 4 + eyeShake; 
+    }
     else if (renderEmotion == 21) { 
         h = 24; y = 18; 
         lx += sin(millis() / 100.0) * 4; rx += sin(millis() / 100.0) * 4;
@@ -187,8 +206,13 @@ void updateDisplay() {
             lastRenderedEmotion = currentEmotion;
         }
     } else {
-        u8g2.drawRBox(l_x, l_y, wl, hl, 8);
-        u8g2.drawRBox(r_x, r_y, wr, hr, 8);
+        // မျက်လုံးအရွယ်အစားပေါ်မူတည်၍ အချိုးကျ ထောင့်ဝိုင်း (Radius) ကို အလိုအလျောက် တွက်ချက်မည်
+        // U8g2 Bug ကိုလည်း ကာကွယ်ပြီးသားဖြစ်ကာ၊ မည်မျှသေးငယ်ပါစေ ထောင့်ဝိုင်းလေးများ (လုံးဝန်းမှု) အမြဲရရှိမည်ဖြစ်သည်
+        int rad_l = min(8, min(wl / 2, hl / 2));
+        int rad_r = min(8, min(wr / 2, hr / 2));
+
+        u8g2.drawRBox(l_x, l_y, wl, hl, rad_l);
+        u8g2.drawRBox(r_x, r_y, wr, hr, rad_r);
 
         u8g2.setDrawColor(0); 
         switch(renderEmotion) {
@@ -215,7 +239,9 @@ void updateDisplay() {
             case 7:  
                 u8g2.drawBox(r_x-5, 0, wr+10, r_y+20); break;
             case 9:  
-                u8g2.drawDisc(l_x, l_y-5, 15); u8g2.drawDisc(r_x+wr, r_y+hr+5, 15); break;
+                // တစ်ခြမ်းပဲ့ကြီးဖြစ်စေသော ကုဒ်အဟောင်းကို ဖျက်လိုက်ပါပြီ။
+                // Dizzy အတွက် အပေါ်ပိုင်း (Step 2) တွင် ရေးထားသော Smooth Shaking Effect သာ ပြပါမည်။
+                break;
             case 15: 
                 u8g2.drawBox(0, 0, 128, l_y+25); break;
         }
@@ -223,11 +249,13 @@ void updateDisplay() {
 
         if (renderEmotion >= 20) {
             unsigned long ms = millis();
-            if (renderEmotion == 20) { 
-                int shake = sin(ms / 30.0) * 3; 
-                u8g2.drawDisc(64 + shake, 52, 8, U8G2_DRAW_UPPER_RIGHT | U8G2_DRAW_UPPER_LEFT); 
-                u8g2.drawBox(55 + shake, 52, 18, 2); 
-                u8g2.drawDisc(64 + shake, 55, 2);    
+            if (renderEmotion == 20) { // ⏰ Alarm
+                int shake = sin(ms / 30.0) * 4; // တုန်ခါမှုကို ပိုသိသာအောင် နည်းနည်းတိုးထားသည်
+                
+                // ခေါင်းလောင်းကို စခရင်အလယ် (Y=38 ဝန်းကျင်) သို့ ရွှေ့ပြီး Size ပိုကြီးလိုက်သည်
+                u8g2.drawDisc(64 + shake, 38, 12, U8G2_DRAW_UPPER_RIGHT | U8G2_DRAW_UPPER_LEFT); 
+                u8g2.drawBox(51 + shake, 38, 26, 3); // ခေါင်းလောင်း အောက်ခြေအပြား
+                u8g2.drawDisc(64 + shake, 42, 3);    // ခေါင်းလောင်း လျှာခင်
             }
             else if (renderEmotion == 21) { 
                 int moveX = sin(ms / 100.0) * 8;

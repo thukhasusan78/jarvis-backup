@@ -111,14 +111,25 @@ void initNetwork() {
 void updateNetwork() {
   webSocket.loop(); 
 
+  static unsigned long alarmStartTime = 0; // နှိုးစက်စမြည်သည့် အချိန်မှတ်ရန်
+
   // ၁ စက္ကန့်တိုင်း အချိန်ကို စစ်ဆေးပြီး Alarm အချိန်နှင့် ကိုက်ညီပါက နှိုးစက်အော်မည်
   if (isAlarmSet && !isAlarmRinging) {
     int h, m, s;
     if (getMyanmarTime(h, m, s)) {
       if (h == alarmHour && m == alarmMinute && s == 0) {
         isAlarmRinging = true;
+        alarmStartTime = millis(); // မြည်သည့်အချိန်ကို မှတ်သားမည်
         Serial.println("[Alarm] WAKE UP!! Alarm Triggered!");
       }
+    }
+  }
+
+  // ⏰ နှိုးစက်အော်နေပါက စက္ကန့် ၃၀ ပြည့်လျှင် အလိုအလျောက် ပိတ်မည်
+  if (isAlarmRinging) {
+    if (millis() - alarmStartTime > 30000) { // 30000ms = စက္ကန့် ၃၀
+        stopAlarm();
+        Serial.println("[Alarm] Auto-stopped after 30 seconds.");
     }
   }
 }
