@@ -22,10 +22,12 @@ void initEmotionEngine() {
 }
 
 void updateEmotionEngine() {
-  // ⚡ ၁။ နှိုးစက် (Alarm) မြည်နေပါက အရာအားလုံးထက် ဦးစားပေးပြီး Alarm Screen အတင်းပြမည် (Highest Priority Interrupt)
+  static int lastSensorState = 0;
   if (isAlarmRinging) {
     setActivityRoutine(20); 
     isIdle = false;
+    lastSensorState = 0;       // Alarm ကြောင့် isIdle false ဖြစ်သွားကြောင်း သတ်မှတ်ရန်
+    lastActionTime = millis(); // နှိုးစက်ပိတ်သွားချိန်တွင် အချိန်ဆက်တွက်နိုင်ရန် အမြဲ Update လုပ်ထားမည်
     return;
   }
 
@@ -35,8 +37,6 @@ void updateEmotionEngine() {
   float totalAccel = abs(a.acceleration.x) + abs(a.acceleration.y) + abs(a.acceleration.z) - 9.8;
   bool isTouched = (digitalRead(TOUCH_PIN) == LOW);
   unsigned long currentTime = millis();
-
-  static int lastSensorState = 0; 
 
   if (totalAccel > 5.0) { 
     if (lastSensorState != 2 || (currentTime - lastActionTime > 2000)) {
@@ -66,9 +66,10 @@ void updateEmotionEngine() {
         lastSensorState = 3; // Angry State သို့ ပြောင်းမည်
         lastActionTime = currentTime;
       }
-      // (၂) ဒေါသထွက်တာ ၂ စက္ကန့်ပြည့်သွားလျှင် (သို့) ထိတွေ့မှု (Touched) ၃ စက္ကန့်ပြည့်သွားလျှင် ပုံမှန်ပြန်ဖြစ်မည်
-      else if ((lastSensorState == 3 && currentTime - lastActionTime > 2000) || 
-               (lastSensorState == 1 && currentTime - lastActionTime > 3000)) {
+      // (၂) ဒေါသထွက်တာ၊ ထိတွေ့ခံရတာ အချိန်ပြည့်သွားလျှင် (သို့) နှိုးစက်ပိတ်သွားပြီးနောက် ပုံမှန်ပြန်ဖြစ်မည်
+      else if ((lastSensorState == 3 && currentTime - lastActionTime > 5000) || 
+               (lastSensorState == 1 && currentTime - lastActionTime > 3000) ||
+               (lastSensorState == 0 && currentTime - lastActionTime > 500)) {
         Serial.println(F("[Local AI] Idle -> Returning to Daily Schedule"));
         isIdle = true;
         lastSensorState = 0;
