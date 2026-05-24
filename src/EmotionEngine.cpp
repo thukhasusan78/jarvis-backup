@@ -1,21 +1,18 @@
 #include "EmotionEngine.h"
 #include "DisplayManager.h"
+#include "NetworkManager.h" // အချိန်နှင့် Alarm variables များ ယူရန်
 #include <Wire.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 
-#define TOUCH_PIN 10 // Diagram အရ Pin 10 တွင် ချိတ်ထားပါသည်
+#define TOUCH_PIN 10 
 
 Adafruit_MPU6050 mpu;
-
-// AI ဆုံးဖြတ်ချက်အတွက် အချိန်မှတ်စနစ်
 unsigned long lastActionTime = 0;
 bool isIdle = true; 
 
 void initEmotionEngine() {
-  pinMode(TOUCH_PIN, INPUT_PULLUP); // Touch pin ကို ဖွင့်ပါမည်
-
-  // main.cpp တွင် Wire.begin(8, 9) ဖွင့်ထားပြီးဖြစ်၍ &Wire ကိုသာ ယူသုံးပါမည်
+  pinMode(TOUCH_PIN, INPUT_PULLUP); 
   if (!mpu.begin(0x68, &Wire)) {
     Serial.println(F("[Local AI] MPU6050 failed to start!"));
   } else {
@@ -25,6 +22,13 @@ void initEmotionEngine() {
 }
 
 void updateEmotionEngine() {
+  // ⚡ ၁။ နှိုးစက် (Alarm) မြည်နေပါက အရာအားလုံးထက် ဦးစားပေးပြီး Alarm Screen အတင်းပြမည် (Highest Priority Interrupt)
+  if (isAlarmRinging) {
+    setActivityRoutine(20); 
+    isIdle = false;
+    return;
+  }
+
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
@@ -32,11 +36,9 @@ void updateEmotionEngine() {
   bool isTouched = (digitalRead(TOUCH_PIN) == LOW);
   unsigned long currentTime = millis();
 
-  // Sensor မှတ်ဉာဏ် (ယခင်လုပ်ခဲ့သော အခြေအနေကို မှတ်ထားရန်)
-  static int lastSensorState = 0; // 0=Neutral, 1=Touched, 2=Shaking
+  static int lastSensorState = 0; 
 
   if (totalAccel > 5.0) { 
-    // အရင်က Happy ဖြစ်နေရင်တောင် အကြမ်းပတမ်းလှုပ်တာကို ဦးစားပေးပြီး ချက်ချင်း ဖြတ်ဝင်မည် (Interrupt)
     if (lastSensorState != 2 || (currentTime - lastActionTime > 2000)) {
       Serial.println(F("[Local AI] Shaking! -> DIZZY"));
       setEyeDizzy(); 
@@ -55,44 +57,50 @@ void updateEmotionEngine() {
     }
   } 
   else { 
-    // အခြေအနေ (က) - အခုမှ စပြီး ငြိမ်သွားခြင်း 
-    // (ဘာမှမလုပ်ဘဲ ၂ စက္ကန့် ကြာလျှင် ပုံမှန် Neutral သို့ အရင်သွားမည်)
-    if (!isIdle && (currentTime - lastActionTime > 2000)) {
-      Serial.println(F("[Local AI] Idle -> NEUTRAL"));
-      setEyeNeutral(); 
+    // အရုပ် လှုပ်ရှားမှုပြီး၍ ငြိမ်သွားပါက (၃ စက္ကန့်အကြာတွင်) ပုံမှန် အချိန်ဇယားစနစ်သို့ ပြန်သွားမည်
+    if (!isIdle && (currentTime - lastActionTime > 3000)) {
+      Serial.println(F("[Local AI] Idle -> Returning to Daily Schedule"));
       isIdle = true;
       lastSensorState = 0;
-      lastActionTime = currentTime; // ငြိမ်သွားတဲ့ အချိန်ကို စတင်မှတ်သားမည်
+      lastActionTime = currentTime; 
     } 
-    // အခြေအနေ (ခ) - ငြိမ်နေတာ ကြာသွားခြင်း (Idle Personality)
-    // (၇ စက္ကန့်ပြည့်တိုင်း အခြားအမူအရာတစ်ခုခုကို ကျပန်း ပြောင်းမည်)
-    else if (isIdle && (currentTime - lastActionTime > 5000)) {
-      int randomIdleEmotion = random(0, 5); // 0 မှ 4 အတွင်း ကျပန်းဂဏန်း (Random) ထုတ်မည်
-      
-      switch(randomIdleEmotion) {
-        case 0: 
-          setEyeNeutral(); 
-          Serial.println(F("[Local AI] Idle -> NEUTRAL")); 
-          break;
-        case 1: 
-          setEyeBored(); // ပျင်းရိသော
-          Serial.println(F("[Local AI] Idle -> BORED")); 
-          break;
-        case 2: 
-          setEyeSleepy(); // အိပ်ချင်သော
-          Serial.println(F("[Local AI] Idle -> SLEEPY")); 
-          break;
-        case 3: 
-          setEyeCurious(); // စပ်စုချင်သော
-          Serial.println(F("[Local AI] Idle -> CURIOUS")); 
-          break;
-        case 4: 
-          setEyeAmused(); // သဘောကျနေသော
-          Serial.println(F("[Local AI] Idle -> AMUSED")); 
-          break;
+    
+    // --- 🕰️ နေ့စဉ်ဘဝ အချိန်ဇယားစနစ် (Daily Routine Schedule Logic) ---
+    else if (isIdle) {
+      int hour, minute, second;
+      if (getMyanmarTime(hour, minute, second)) {
+        
+        // ည ၁၀ နာရီကျော်လျှင်မူ တစ်ညလုံး အိပ်နေမည် (အချိန်မရွေး)
+        if (hour >= 22 || hour < 6) {
+            setEyeSleepy();        
+        } 
+        // နေ့လည်ပိုင်း Routine များကို မိနစ် ၀ ကနေ ၉ မိနစ်အတွင်း (ပထမ ၁၀ မိနစ်စာ) သာ ပြသမည်
+        else if (minute < 10) {
+            if (hour == 7) {
+              setActivityRoutine(21); // မနက် ၇ နာရီ (7:00 - 7:09): သွားတိုက်မယ်
+            } else if (hour == 8) {
+              setActivityRoutine(22); // မနက် ၈ နာရီ (8:00 - 8:09): မနက်စာ
+            } else if (hour >= 9 && hour < 12) {
+              setActivityRoutine(23); // (9:00-9:09, 10:00-10:09...): ကွန်ပျူတာသုံးမည်
+            } else if (hour == 12 || hour == 13) {
+              setActivityRoutine(22); // နေ့လည်စာ
+            } else if (hour >= 17 && hour < 18) {
+              setActivityRoutine(24); // Gym ဆော့မည်
+            } else if (hour >= 19 && hour < 21) {
+              setActivityRoutine(25); // TV ကြည့်မည်
+            } else {
+              setEyeNeutral();       
+            }
+        } 
+        // ⏰ ၁၀ မိနစ်ကျော်သွားပါက ပုံမှန် မျက်လုံး (Neutral) သို့ အလိုအလျောက် ပြန်ရောက်မည်
+        else {
+            setEyeNeutral();
+        }
+        
+      } else {
+        // WiFi မချိတ်ရသေးပါက ပုံမှန်မျက်လုံးပြမည်
+        setEyeNeutral();
       }
-      
-      lastActionTime = currentTime; // ၇ စက္ကန့်ကို အစကနေ ပြန်မှတ်မည်
     }
   }
 }

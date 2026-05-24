@@ -31,4 +31,7 @@ void setEyeSleepy();      // အိပ်ချင်နေသော
 void setEyeThinking();    // စဉ်းစားနေသော
 void setEyeUpset();       // စိတ်ခုနေသော
 
+// --- နေ့စဉ်ဘဝ လုပ်ဆောင်ချက်များ ပြသရန် အသစ်ထပ်တိုးခြင်း ---
+void setActivityRoutine(int routineId);
+
 #endif

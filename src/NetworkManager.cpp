@@ -2,17 +2,49 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 #include "DisplayManager.h" 
-#include "AudioManager.h"
+#include <time.h> // NTP အချိန်စနစ်သုံးရန်
 
 const char* ssid = "U Myat Phone"; 
 const char* password = "Gbank8028";
-
-// ဤနေရာတွင် မင်းရဲ့ VPS IP ကို ပြန်ထည့်ပေးပါ
 const char* ws_host = "103.47.227.135"; 
 const int ws_port = 8081; 
 const char* ws_path = "/ws/emo";
 
 WebSocketsClient webSocket;
+
+// Alarm Variables များကို တည်ဆောက်ခြင်း
+int alarmHour = -1;
+int alarmMinute = -1;
+bool isAlarmSet = false;
+bool isAlarmRinging = false;
+
+// Server မှ လှမ်းสั่งသော အချိန်အတိုင်း Alarm သတ်မှတ်ခြင်း
+void setLocalAlarm(int hour, int minute) {
+  alarmHour = hour;
+  alarmMinute = minute;
+  isAlarmSet = true;
+  isAlarmRinging = false;
+  Serial.printf("[Alarm] Custom Alarm Set for %02d:%02d (Myanmar Time)\n", hour, minute);
+}
+
+// နှိုးစက်ပိတ်ခြင်း
+void stopAlarm() {
+  isAlarmRinging = false;
+  isAlarmSet = false; 
+  Serial.println("[Alarm] Alarm Stopped!");
+}
+
+// လက်ရှိ မြန်မာစံတော်ချိန်ကို ဖတ်ပေးမည့် Function
+bool getMyanmarTime(int &hour, int &minute, int &second) {
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    return false; // အချိန် Sync မရသေးပါက False ပြန်မည်
+  }
+  hour = timeinfo.tm_hour;
+  minute = timeinfo.tm_min;
+  second = timeinfo.tm_sec;
+  return true;
+}
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
@@ -30,16 +62,18 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       
       if (!error) {
         const char* action = doc["action"];
-        
         if (action) {
-          // ၁။ Action သည် သီချင်းဖွင့်ရန် (play_audio) ဖြစ်လျှင်
-          if (strcmp(action, "play_audio") == 0) {
-            const char* url = doc["url"];
-            if (url) {
-               playAudioStream(url); // အသံ Stream စတင်ဆွဲမည်
-            }
-          } 
-          // ၂။ Action သည် မျက်နှာအမူအရာပြောင်းရန် (play_animation) ဖြစ်လျှင်
+          // (က) နှိုးစက်အသစ် သတ်မှတ်ရန် Command ဝင်လာလျှင်
+          if (strcmp(action, "set_alarm") == 0) {
+            int h = doc["hour"];
+            int m = doc["minute"];
+            setLocalAlarm(h, m);
+          }
+          // (ခ) နှိုးစက်ပိတ်ရန် Command ဝင်လာလျှင်
+          else if (strcmp(action, "stop_alarm") == 0) {
+            stopAlarm();
+          }
+          // (ဂ) ပုံမှန် Animation ခိုင်းစေမှု
           else if (strcmp(action, "play_animation") == 0) {
             const char* anim = doc["animation"];
             if (anim) {
@@ -65,6 +99,10 @@ void initNetwork() {
   Serial.print("[Network] IP Address: ");
   Serial.println(WiFi.localIP());
 
+  // --- မြန်မာစံတော်ချိန် (UTC +6:30) သို့ NTP Sync လုပ်ခြင်း ---
+  Serial.println("[Network] Syncing Myanmar Time via NTP...");
+  configTime(6.5 * 3600, 0, "pool.ntp.org", "time.nist.gov"); 
+
   webSocket.begin(ws_host, ws_port, ws_path);
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000); 
@@ -72,6 +110,17 @@ void initNetwork() {
 
 void updateNetwork() {
   webSocket.loop(); 
+
+  // ၁ စက္ကန့်တိုင်း အချိန်ကို စစ်ဆေးပြီး Alarm အချိန်နှင့် ကိုက်ညီပါက နှိုးစက်အော်မည်
+  if (isAlarmSet && !isAlarmRinging) {
+    int h, m, s;
+    if (getMyanmarTime(h, m, s)) {
+      if (h == alarmHour && m == alarmMinute && s == 0) {
+        isAlarmRinging = true;
+        Serial.println("[Alarm] WAKE UP!! Alarm Triggered!");
+      }
+    }
+  }
 }
 
 void sendRobotState(float valence, float arousal, const char* mood) {
