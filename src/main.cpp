@@ -4,7 +4,8 @@
 #include "EmotionEngine.h"  // အာရုံခံနှင့် ဦးနှောက်ပိုင်း
 #include "MotorManager.h"   // မော်တာပိုင်း
 #include "NetworkManager.h" // Network စနစ်
-#include "AudioManager.h" // <--- အသ
+#include "AudioManager.h" 
+#include "MicrophoneManager.h" // <--- Mic အတွက်
 
 #define SDA_PIN 8
 #define SCL_PIN 9
@@ -35,6 +36,7 @@ void setup() {
   initEmotionEngine(); 
   initMotors();
   initAudio();
+  initMicrophone(); // <--- Mic စတင်ရန်
   initNetwork(); // WiFi နှင့် WebSocket စတင်မည်
 
   xTaskCreate(TaskDisplay, "Display_Task", 4096, NULL, 3, &TaskDisplayHandle);

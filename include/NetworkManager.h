@@ -18,4 +18,7 @@ void setLocalAlarm(int hour, int minute);
 void stopAlarm();
 bool getMyanmarTime(int &hour, int &minute, int &second);
 
+void sendCommand(const char* action);
+void sendAudioChunk(uint8_t* payload, size_t length);
+
 #endif

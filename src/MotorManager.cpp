@@ -1,125 +1,150 @@
 #include "MotorManager.h"
 
-// ---------------------------------------------------------
-// ESP32 Native LEDC (Hardware PWM) Setting များ
-// ---------------------------------------------------------
-const int freq = 50;           // Servo Standard Frequency (50Hz)
-const int resolution = 12;     // 12-bit Resolution (0 မှ 4095 အထိ)
+// ခြေထောက် ၄ ခုအတွက် Servo ကြေညာခြင်း
+Servo servoLeftHip;
+Servo servoLeftKnee;
+Servo servoRightHip;
+Servo servoRightKnee;
 
-// PWM Channel သတ်မှတ်ခြင်း (မော်တာ ၄ လုံးအတွက် 0, 1, 2, 3)
-const int CH_LL = 0; 
-const int CH_RL = 1;
-const int CH_LF = 2;
-const int CH_RF = 3;
+const int LEFT_HIP_PIN = 4;
+const int RIGHT_HIP_PIN = 5; 
+const int LEFT_KNEE_PIN = 6;  
+const int RIGHT_KNEE_PIN = 7; 
 
-// 0 မှ 180 ဒီဂရီကို ESP32 နားလည်သော လျှပ်စစ်လှိုင်း (Duty Cycle) သို့ ပြောင်းပေးမည့် Function
-void setMotorAngle(int channel, int angle) {
-    // 500us မှ 2400us ကို 12-bit သို့ တွက်ချက်ထားခြင်း (102 မှ 491)
-    int duty = map(angle, 0, 180, 102, 491); 
-    ledcWrite(channel, duty);
-}
+// --- Xiaozhi Oscillator စနစ် ---
+struct Oscillator {
+    float A = 0;      // Amplitude (လှုပ်ရှားမည့် အကျယ်)
+    float O = 0;      // Offset (အလယ်ဗဟိုချက်)
+    float T = 1000;   // Period (အချိန် ဥပမာ - ၁၀၀၀ မီလီစက္ကန့်)
+    float phase = 0;  // Phase (စတင်မည့် ဒီဂရီ)
+    int pos = 90;     // လက်ရှိရောက်နေသော ဒီဂရီ
+    int trim = 0;     // ချိန်ညှိမှု (Calibration)
+};
+
+Oscillator osc[4]; 
+unsigned long ref_time = 0;
+bool isMoving = false;
+int currentMovement = 0; 
 
 void initMotors() {
-  // Library မလိုတော့ဘဲ ESP32 ၏ Hardware ပိုင်းကို တိုက်ရိုက် အသက်သွင်းခြင်း
-  ledcSetup(CH_LL, freq, resolution);
-  ledcAttachPin(4, CH_LL);
-
-  ledcSetup(CH_RL, freq, resolution);
-  ledcAttachPin(5, CH_RL);
-
-  ledcSetup(CH_LF, freq, resolution);
-  ledcAttachPin(6, CH_LF);
-
-  ledcSetup(CH_RF, freq, resolution);
-  ledcAttachPin(7, CH_RF);
-
-  // စတင်စတင်ချင်း မတ်တပ်ရပ်အနေအထား (၉၀ ဒီဂရီ) တွင် ထားမည်
-  setMotorAngle(CH_LL, 90);
-  setMotorAngle(CH_RL, 90);
-  setMotorAngle(CH_LF, 90);
-  setMotorAngle(CH_RF, 90);
-  
-  Serial.println("[Motor] Native Hardware PWM Ready! (No External Library Needed)");
+    servoLeftHip.attach(LEFT_HIP_PIN);
+    servoLeftKnee.attach(LEFT_KNEE_PIN);
+    servoRightHip.attach(RIGHT_HIP_PIN);
+    servoRightKnee.attach(RIGHT_KNEE_PIN);
+    
+    // မော်တာများကို အလယ် ၉၀ ဒီဂရီသို့ သတ်မှတ်ခြင်း
+    for (int i=0; i<4; i++) {
+        osc[i].pos = 90;
+        osc[i].trim = 0; 
+    }
+    
+    servoLeftHip.write(90);
+    servoLeftKnee.write(90);
+    servoRightHip.write(90);
+    servoRightKnee.write(90);
+    
+    Serial.println(F("[Motor] Servos Ready!"));
 }
 
+// လှိုင်း (Sine Wave) ကို တွက်ချက်သည့် Function
+void refreshOscillators() {
+    unsigned long current_time = millis();
+    for(int i = 0; i < 4; i++) {
+        float time_part = (current_time - ref_time) % (unsigned long)osc[i].T;
+        float angle = (float)time_part / osc[i].T * 2 * PI;
+        osc[i].pos = round(osc[i].A * sin(angle + osc[i].phase) + osc[i].O) + 90 + osc[i].trim;
+    }
+    
+    servoLeftHip.write(osc[0].pos);
+    servoRightHip.write(osc[1].pos);
+    servoLeftKnee.write(osc[2].pos);
+    servoRightKnee.write(osc[3].pos);
+}
+
+// လှုပ်ရှားမှုများကို စတင်ရန် ချိန်ညှိခြင်း
+void setOscillators(float A0, float A1, float A2, float A3, 
+                    float O0, float O1, float O2, float O3, 
+                    float T0, float T1, float T2, float T3, 
+                    float P0, float P1, float P2, float P3) {
+    osc[0].A = A0; osc[1].A = A1; osc[2].A = A2; osc[3].A = A3;
+    osc[0].O = O0; osc[1].O = O1; osc[2].O = O2; osc[3].O = O3;
+    osc[0].T = T0; osc[1].T = T1; osc[2].T = T2; osc[3].T = T3;
+    osc[0].phase = P0; osc[1].phase = P1; osc[2].phase = P2; osc[3].phase = P3;
+    ref_time = millis();
+    isMoving = true;
+}
+
+// --- Xiaozhi ၏ အဓိက လှုပ်ရှားမှု ၁၁ မျိုး ---
+
+void setMove_Walk() { // ၁။ လမ်းလျှောက်ခြင်း
+    setOscillators(15, 15, 20, 20,  0, 0, 0, 0,  1000, 1000, 1000, 1000,  0, PI, PI/2, -PI/2);
+}
+
+void setMove_Turn() { // ၂။ လှည့်ခြင်း
+    setOscillators(20, 20, 10, 10,  0, 0, 0, 0,  1000, 1000, 1000, 1000,  0, PI, PI/2, PI/2);
+}
+
+void setMove_UpDown() { // ၃။ ထိုင်ထလုပ်ခြင်း
+    setOscillators(0, 0, 25, 25,  0, 0, 0, 0,  1000, 1000, 1000, 1000,  0, 0, PI/2, PI/2);
+}
+
+void setMove_Moonwalker() { // ၄။ မွန်းဝေါ့ခ်
+    setOscillators(15, 15, 15, 15,  0, 0, 0, 0,  1500, 1500, 1500, 1500,  0, PI, PI/2, -PI/2);
+}
+
+void setMove_Swing() { // ၅။ ယိမ်းထိုးခြင်း
+    setOscillators(20, 20, 0, 0,  0, 0, 0, 0,  1200, 1200, 1200, 1200,  0, PI, 0, 0);
+}
+
+void setMove_Crusaito() { // ၆။ ကဏန်းလျှောက်
+    setOscillators(15, 15, 25, 25,  0, 0, 0, 0,  1500, 1500, 1500, 1500,  0, PI, PI/2, PI/2);
+}
+
+void setMove_Flapping() { // ၇။ တောင်ပံခတ်ခြင်း (ဝမ်းသာသောအခါ)
+    setOscillators(10, 10, 20, 20,  0, 0, 0, 0,  600, 600, 600, 600,  0, PI, 0, PI);
+}
+
+void setMove_ShakeLeg() { // ၈။ ခြေခါခြင်း
+    setOscillators(0, 0, 15, 0,  0, 0, -15, 0,  500, 500, 500, 500,  0, 0, PI/2, 0);
+}
+
+void setMove_TiptoeSwing() { // ၉။ ခြေဖျားထောက်ယိမ်းခြင်း
+    setOscillators(20, 20, 15, 15,  0, 0, -10, -10,  1000, 1000, 1000, 1000,  0, PI, PI/2, PI/2);
+}
+
+void setMove_Jitter() { // ၁၀။ တုန်ယင်ခြင်း (ဒေါသထွက်/ကြောက်သောအခါ)
+    setOscillators(5, 5, 5, 5,  0, 0, 0, 0,  150, 150, 150, 150,  0, PI, PI/2, -PI/2);
+}
+
+void setMove_Bend() { // ၁၁။ ကိုင်းညွတ်ခြင်း (အိပ်နေစဉ်)
+    setOscillators(0, 0, 30, 30,  0, 0, -20, 20,  3000, 3000, 3000, 3000,  0, 0, PI/2, PI/2);
+}
+
+// မျက်လုံး/အမူအရာပေါ်မူတည်၍ လှုပ်ရှားမှုများကို ချိတ်ဆက်ပေးခြင်း
 void updateMotors(int emotionId) {
-  unsigned long t = millis();
-  
-  int ll = 90, rl = 90, lf = 90, rf = 90; 
-
-  // Emotion အလိုက် တွက်ချက်ခြင်း (ယခင်အတိုင်း)
-  switch(emotionId) {
-    case 0:  
-    case 16: 
-      ll = 90 + sin(t / 200.0) * 30;
-      rl = 90 - sin(t / 200.0) * 30;
-      break;
-
-    case 1:  
-    case 10: 
-    case 12: 
-      lf = 90 + sin(t / 150.0) * 45; 
-      rf = 90 - sin(t / 150.0) * 45;
-      ll = 90 + sin(t / 150.0) * 30;
-      rl = 90 - sin(t / 150.0) * 30;
-      break;
-
-    case 9:  
-      ll = 90 + sin(t / 300.0) * 40;
-      rl = 90 + cos(t / 250.0) * 40;
-      lf = 90 + sin(t / 400.0) * 30;
-      rf = 90 - cos(t / 350.0) * 30;
-      break;
-
-    case 5:  
-      lf = 90 + sin(t / 800.0) * 30;
-      rf = 90 + sin(t / 800.0) * 30; 
-      break;
-
-    case 14: 
-      ll = 90 + sin(t / 20.0) * 10;
-      rl = 90 - sin(t / 20.0) * 10;
-      lf = 90 + cos(t / 20.0) * 10;
-      rf = 90 - cos(t / 20.0) * 10;
-      break;
-
-    case 15: 
-      ll = 130 + sin(t / 1000.0) * 5;
-      rl = 50 - sin(t / 1000.0) * 5;
-      break;
-
-    case 3:  
-    case 6:  
-    case 11: 
-      ll = 50; rl = 130; 
-      lf = 90 + sin(t / 100.0) * 15; 
-      rf = 90 - sin(t / 100.0) * 15;
-      break;
-
-    case 7:  
-    case 8:  
-      ll = 70; rl = 70; 
-      lf = 130; rf = 90; 
-      break;
-
-    default: 
-      ll = 90 + sin(t / 400.0) * 10;
-      rl = 90 - sin(t / 400.0) * 10;
-      break;
-  }
-
-  // Simulator ကို မလိုအပ်ဘဲ အလုပ်မရှုပ်စေရန်၊ ပြောင်းလဲသွားမှသာ အမိန့်ပေးမည်
-  static int last_ll = -1, last_rl = -1, last_lf = -1, last_rf = -1;
-
-  if (ll != last_ll) { setMotorAngle(CH_LL, ll); last_ll = ll; }
-  if (rl != last_rl) { setMotorAngle(CH_RL, rl); last_rl = rl; }
-  if (lf != last_lf) { setMotorAngle(CH_LF, lf); last_lf = lf; }
-  if (rf != last_rf) { setMotorAngle(CH_RF, rf); last_rf = rf; }
-  
-  // Debugging
-  static unsigned long lastPrint = 0;
-  if (t - lastPrint > 1000) { 
-      Serial.printf("[Motor] Emotion ID: %d | Left Leg Angle: %d\n", emotionId, ll);
-      lastPrint = t;
-  }
+    if (currentMovement != emotionId) {
+        currentMovement = emotionId;
+        
+        switch (emotionId) {
+            case 1: setMove_Walk(); break; 
+            case 2: setMove_Turn(); break; 
+            case 3: setMove_Jitter(); break;   // ဒေါသထွက်လျှင် တုန်ယင်မည်
+            case 5: setMove_Flapping(); break; // ဝမ်းသာလျှင် တောင်ပံခတ်မည်
+            case 6: setMove_Bend(); break;     // အိပ်နေလျှင် ခါးကိုင်းထားမည်
+            case 9: setMove_ShakeLeg(); break; // မူးနေလျှင် ခြေခါမည်
+            case 20: setMove_Jitter(); break;  // Alarm မြည်လျှင် တုန်ယင်မည်
+            case 25: setMove_Swing(); break;   // သီချင်းနားထောင်လျှင် ယိမ်းထိုးမည်
+            default: isMoving = false; break;  // ပုံမှန်ဆိုလျှင် ရပ်နေမည်
+        }
+    }
+    
+    if (isMoving) {
+        refreshOscillators(); // လှုပ်ရှားနေပါက လှိုင်းများကို ဆက်လက်တွက်ချက်၍ မော်တာများကို မောင်းနှင်မည်
+    } else {
+        // ရပ်နေပါက ၉၀ ဒီဂရီသို့ ပြန်သွားမည်
+        servoLeftHip.write(90);
+        servoRightHip.write(90);
+        servoLeftKnee.write(90);
+        servoRightKnee.write(90);
+    }
 }

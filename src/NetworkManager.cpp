@@ -4,8 +4,8 @@
 #include "DisplayManager.h" 
 #include <time.h> // NTP အချိန်စနစ်သုံးရန်
 
-const char* ssid = "U Myat Phone"; 
-const char* password = "Gbank8028";
+const char* ssid = "Redmi Note 13 Pro"; 
+const char* password = "11111111";
 const char* ws_host = "103.47.227.135"; 
 const int ws_port = 8081; 
 const char* ws_path = "/ws/emo";
@@ -145,5 +145,21 @@ void sendRobotState(float valence, float arousal, const char* mood) {
     String jsonString;
     serializeJson(doc, jsonString);
     webSocket.sendTXT(jsonString);
+  }
+}
+
+void sendCommand(const char* action) {
+  if (webSocket.isConnected()) {
+    StaticJsonDocument<100> doc;
+    doc["action"] = action;
+    String jsonString;
+    serializeJson(doc, jsonString);
+    webSocket.sendTXT(jsonString);
+  }
+}
+
+void sendAudioChunk(uint8_t* payload, size_t length) {
+  if (webSocket.isConnected()) {
+    webSocket.sendBIN(payload, length); // အသံဖိုင်ကို Binary ဖြင့် ပို့ခြင်း
   }
 }
