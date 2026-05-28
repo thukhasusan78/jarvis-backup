@@ -1,0 +1,68 @@
+# 🤖 EMO Robot Project - System Context & Documentation
+
+> **Note to AI:** This document contains the complete context, hardware specifications, software architecture, and current state of the "EMO Robot" project developed by Thu Kha Su San. Please read and analyze this document thoroughly before answering any prompts. Do not ask the user to repeat these details.
+
+## 1. 🏗️ Project Overview
+This project is an open-source, DIY desktop AI robot (similar to LivingAI's EMO). It features a face (OLED screen), a physical body (4 servo motors), spatial awareness (IMU), hearing (Microphone), speaking (I2S Speaker), and a brain powered by a remote Python VPS server connected via WebSockets. 
+
+## 2. 🔌 Hardware Specifications
+The core microcontroller is the **ESP32-S3 N16R8 (Standard DevKitC-1, Black Board, 25.4mm width)**.
+
+**Pinout & Components:**
+* **Microcontroller:** ESP32-S3 (16MB Flash, 8MB PSRAM)
+* **Display:** 1.3" / 0.96" OLED SSD1306 (I2C)
+* **IMU / Accelerometer:** MPU6050 (I2C)
+    * *I2C Shared Pins:* `SDA = GPIO 8`, `SCL = GPIO 9`
+* **Microphone:** INMP441 I2S Omnidirectional Mic
+    * *I2S_1 Pins:* `SCK/BCLK = 15`, `WS/LRC = 16`, `SD/DIN = 17`, `L/R = GND`
+* **Speaker & Amplifier:** MAX98357A I2S Amplifier + **8-ohm 0.5W Speaker**
+    * *I2S_0 Pins:* (Configured in `AudioManager`)
+* **Motors (Legs):** 4x SG90 Servo Motors (2-DOF per leg)
+    * `LEFT_HIP_PIN = 4`
+    * `RIGHT_HIP_PIN = 5`
+    * `LEFT_KNEE_PIN = 6`
+    * `RIGHT_KNEE_PIN = 7`
+* **Sensors:** Touch Sensor (Capacitive/Push Button) -> `TOUCH_PIN = 10`
+
+## 3. 💻 Software Architecture (ESP32 / C++)
+Developed using **PlatformIO** (Arduino Framework). The code is divided into highly modular managers:
+
+* **`EmotionEngine.cpp` (The Core Logic):**
+    * Handles state machine (`isIdle`, `lastActionTime`, `lastSensorState`).
+    * MPU6050 Logic: Shaking (>5.0 accel) triggers `Dizzy` -> `Angry` -> `Neutral`.
+    * Daily Schedule: Uses NTP time to trigger events (e.g., Sleep at 22:00, brushing teeth at 07:00).
+    * Auto-record/Push-to-talk logic for the microphone.
+* **`MotorManager.cpp` (Kinematics):**
+    * Uses `ESP32Servo.h` with hardware timers allocated (`ESP32PWM::allocateTimer(0-3)`).
+    * Kinematics logic is directly ported from the **Xiaozhi ESP32** open-source project.
+    * Uses Sine Wave Oscillators for 11 fluid movements: `Walk`, `Turn`, `UpDown`, `Moonwalker`, `Swing`, `Crusaito`, `Flapping`, `ShakeLeg`, `TiptoeSwing`, `Jitter`, `Bend`.
+* **`DisplayManager.cpp`:**
+    * Handles eye animations based on current emotion (e.g., `setEyeHappy`, `setEyeDizzy`).
+    * Synchronizes with `MotorManager` to run animations and leg movements concurrently.
+* **`NetworkManager.cpp`:**
+    * Handles WiFi connections and WebSocket client.
+    * Communicates with the Python backend via JSON for commands and Binary for audio streaming.
+
+## 4. 🌐 Backend Server Architecture (Python VPS)
+The robot's "brain" is hosted remotely on an **Atlantic.Net VPS**.
+
+* **Framework:** `FastAPI` running on `uvicorn` (Port: 8081).
+* **Endpoints:**
+    * `/ws/emo`: Main WebSocket endpoint. Handles both Text (JSON commands) and Binary (Audio chunks).
+* **AI Integration Strategy:**
+    * The server receives 16kHz, 16-bit Mono audio bytes from the ESP32.
+    * Currently, it saves the audio to `voice_test.wav` for debugging.
+    * **Future AI:** Will connect directly to **Google Gemini 2.0 Flash Multimodal Live API (Native Audio-to-Audio)** to process user speech and return intelligent voice responses with zero text-to-speech latency.
+
+## 5. 🛠️ 3D Printing & Mechanical
+* **Material Strategy (Production):**
+    * **Main Body & Shell:** **ABS filament** is strictly used to withstand the heat from the ESP32-S3 and Motors (prevents warping). ABS is also vapor-smoothed using Acetone to achieve an injection-molded, premium glossy finish.
+    * **Feet/Soles:** **TPU (Flexible filament)** is used to provide grip on the table and reduce walking noise.
+* **Assembly:** Uses **Brass Heat-Set Threaded Inserts** melted into the plastic instead of screwing directly into plastic, ensuring durability for maintenance. Note that the standard ESP32-S3 DevKitC (25.4mm) is used, so STL files must be calibrated for this specific width (not the wider 28mm YD-ESP32-S3 boards).
+
+## 6. 🚀 Current Status & Developer Notes
+* **Completed:** OLED rendering, IMU shake detection, Network WebSocket connection, Servo kinematics (Oscillators), Basic Push-To-Talk mic capture.
+* **Next Steps:** Implement the Gemini Native Audio WebSocket relay on the Atlantic.Net VPS, decode the audio stream back to the ESP32's MAX98357A amplifier, and refine Wake-Word detection (e.g., "Hey EMO").
+
+---
+**End of Context.** AI, please acknowledge that you have read and understood the project structure.
