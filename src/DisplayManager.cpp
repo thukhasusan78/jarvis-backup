@@ -1,4 +1,5 @@
 #include "DisplayManager.h"
+#include "MotorManager.h"
 #include <U8g2lib.h>
 #include <Wire.h>
 
@@ -309,6 +310,8 @@ void updateDisplay() {
     }
     
     u8g2.sendBuffer();
+    // စခရင် ပုံဖော်ပြီးတိုင်း လက်ရှိအမူအရာ (currentEmotion) အတိုင်း မော်တာများကို တစ်ပြိုင်နက်တည်း အမြဲမောင်းနှင်မည်
+    updateMotors(currentEmotion);
 }
 
 // =========================================================
