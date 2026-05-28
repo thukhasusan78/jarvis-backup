@@ -27,12 +27,24 @@ bool isMoving = false;
 int currentMovement = 0; 
 
 void initMotors() {
+    // ESP32-S3 အတွက် Timer များကို အရင်နေရာချထားရမည်
+    ESP32PWM::allocateTimer(0);
+    ESP32PWM::allocateTimer(1);
+    ESP32PWM::allocateTimer(2);
+    ESP32PWM::allocateTimer(3);
+
+    // Servo များအတွက် 50Hz သတ်မှတ်ပေးခြင်း
+    servoLeftHip.setPeriodHertz(50);
+    servoLeftKnee.setPeriodHertz(50);
+    servoRightHip.setPeriodHertz(50);
+    servoRightKnee.setPeriodHertz(50);
+
+    // Pin များ ချိတ်ဆက်ခြင်း
     servoLeftHip.attach(LEFT_HIP_PIN);
     servoLeftKnee.attach(LEFT_KNEE_PIN);
     servoRightHip.attach(RIGHT_HIP_PIN);
     servoRightKnee.attach(RIGHT_KNEE_PIN);
     
-    // မော်တာများကို အလယ် ၉၀ ဒီဂရီသို့ သတ်မှတ်ခြင်း
     for (int i=0; i<4; i++) {
         osc[i].pos = 90;
         osc[i].trim = 0; 

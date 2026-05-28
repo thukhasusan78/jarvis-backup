@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+extern bool isMicRecording;
+
 void initMicrophone();
 void recordAndSendAudio();
 

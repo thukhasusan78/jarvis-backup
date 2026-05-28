@@ -2,6 +2,8 @@
 #include <driver/i2s.h>
 #include "NetworkManager.h" 
 
+bool isMicRecording = false;
+
 // INMP441 Pins
 #define I2S_WS 16
 #define I2S_SD 17
@@ -44,7 +46,18 @@ void recordAndSendAudio() {
     esp_err_t result = i2s_read(I2S_PORT, &sBuffer, bufferLen * sizeof(int16_t), &bytesIn, portMAX_DELAY);
     
     if (result == ESP_OK && bytesIn > 0) {
-        // ဖတ်လို့ရလာသော အသံ Data များကို WebSocket မှတစ်ဆင့် Server သို့ Binary အနေဖြင့် ပို့မည်
+        // --- 🚀 Software Gain: အသံကို (၈) ဆ ချဲ့ပေးမည် ---
+        int numSamples = bytesIn / 2; // 16-bit ဆိုတော့ 2 ဖြင့်စားသည်
+        for (int i = 0; i < numSamples; i++) {
+            int32_t amplified = (int32_t)sBuffer[i] * 8; // ၈ ဆ မြှောက်မည်
+            
+            // အသံအရမ်းကျယ်သွားပါက အက်မသွားစေရန် ကန့်သတ်ခြင်း (Clipping limit)
+            if (amplified > 32767) amplified = 32767;
+            if (amplified < -32768) amplified = -32768;
+            
+            sBuffer[i] = (int16_t)amplified;
+        }
+        
         sendAudioChunk((uint8_t*)sBuffer, bytesIn);
     }
 }

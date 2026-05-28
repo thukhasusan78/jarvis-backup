@@ -1,7 +1,7 @@
 #include "EmotionEngine.h"
 #include "DisplayManager.h"
 #include "NetworkManager.h" 
-#include "MicrophoneManager.h" // 👈 မိုက်အတွက် အသစ်
+#include "MicrophoneManager.h" 
 #include <Wire.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
@@ -33,43 +33,49 @@ void updateEmotionEngine() {
     return;
   }
 
-  // 👈 currentTime error ပျောက်သွားရန် ဤနေရာတွင် ပြန်ထည့်ထားပါသည်
   unsigned long currentTime = millis();
-
-  // --- 🎤 Auto-Record Timer (Touch မလိုဘဲ ၅ စက္ကန့် အသံဖမ်းစမ်းသပ်ရန်) ---
-  static bool hasRecorded = false;     
-  static bool isRecordingTest = false; 
-  static unsigned long recordStartTime = 0;
-
-  if (currentTime > 5000 && !hasRecorded) {
-      if (!isRecordingTest) {
-          Serial.println(F("[Mic] Auto-Recording Started... Speak now!"));
-          sendCommand("start_record"); 
-          setEyeCurious();             
-          isRecordingTest = true;
-          recordStartTime = currentTime;
-          isIdle = false;
-      }
-      recordAndSendAudio(); 
-      if (currentTime - recordStartTime > 5000) {
-          Serial.println(F("[Mic] Recording Stopped."));
-          sendCommand("stop_record"); 
-          isRecordingTest = false;
-          hasRecorded = true;         
-          isIdle = true;
-          lastActionTime = currentTime;
-          lastSensorState = 0;
-      }
-      return; // အသံဖမ်းနေစဉ် အခြားဆင်ဆာများ ဝင်မရှုပ်စေရန်
-  }
-  // ------------------------------------------------------------------
 
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
   float totalAccel = abs(a.acceleration.x) + abs(a.acceleration.y) + abs(a.acceleration.z) - 9.8;
-  bool isTouched = (digitalRead(TOUCH_PIN) == LOW); // 👈 Touch ကုဒ်အဟောင်း ယခင်အတိုင်း ရှိနေပါသည်
+  
+  // Touch Sensor ကို ဖတ်မည် (လက်နှင့်ထိလျှင် HIGH ဖြစ်မည်ဟု ယူဆပါသည်)
+  bool isTouched = (digitalRead(TOUCH_PIN) == HIGH); 
 
+  // =================================================================
+  // 🎤 Push-to-Talk (Walkie-Talkie ပုံစံ အသံဖမ်းစနစ်)
+  // =================================================================
+  static bool isRecording = false;
+
+  if (isTouched) {
+      if (!isRecording) {
+          Serial.println(F("[Mic] Touch detected. Listening..."));
+          sendCommand("start_record"); 
+          setEyeCurious(); // စကားနားထောင်နေကြောင်း သိသာရန် မျက်လုံးပြောင်းမည်
+          isRecording = true;
+          isMicRecording = true;
+          isIdle = false;
+      }
+      lastActionTime = currentTime;
+      return; // အသံဖမ်းနေစဉ် အခြားအမူအရာများ ဝင်မနှောင့်ယှက်စေရန် (ဒီကနေပဲ အလုပ်လုပ်မည်)
+  } else {
+      if (isRecording) {
+          Serial.println(F("[Mic] Touch released. Processing audio..."));
+          isMicRecording = false;
+          sendCommand("stop_record"); 
+          isRecording = false;
+          
+          setEyeThinking(); // Gemini ဆီက အဖြေကို စောင့်နေစဉ် စဉ်းစားနေသည့် မျက်လုံးပြမည်
+          isIdle = false;
+          lastSensorState = 4; // စဉ်းစားနေသည့် State အဖြစ် မှတ်သားမည်
+          lastActionTime = currentTime;
+          return; 
+      }
+  }
+  // =================================================================
+
+  // အောက်ပိုင်းသည် ကျန်သည့် Sensor (Shaking နှင့် Routine) များဖြစ်သည်
   if (totalAccel > 5.0) { 
     if (lastSensorState != 2 || (currentTime - lastActionTime > 2000)) {
       Serial.println(F("[Local AI] Shaking! -> DIZZY"));
@@ -79,17 +85,8 @@ void updateEmotionEngine() {
       lastSensorState = 2;
     }
   } 
-  else if (isTouched) { 
-    if (lastSensorState != 1 || (currentTime - lastActionTime > 2000)) {
-      Serial.println(F("[Local AI] Touched! -> HAPPY"));
-      setEyeHappy(); 
-      lastActionTime = currentTime;
-      isIdle = false;
-      lastSensorState = 1;
-    }
-  } 
   else { 
-    // အရုပ် လှုပ်ရှားမှုပြီး၍ ငြိမ်သွားပါက
+    // အရုပ် ငြိမ်သွားပြီးနောက် အမူအရာ ပြောင်းလဲခြင်းများ
     if (!isIdle) {
       if (lastSensorState == 2 && (currentTime - lastActionTime > 3000)) {
         Serial.println(F("[Local AI] Stop Shaking -> ANGRY"));
@@ -98,7 +95,7 @@ void updateEmotionEngine() {
         lastActionTime = currentTime;
       }
       else if ((lastSensorState == 3 && currentTime - lastActionTime > 5000) || 
-               (lastSensorState == 1 && currentTime - lastActionTime > 3000) ||
+               (lastSensorState == 4 && currentTime - lastActionTime > 4000) || // AI စဉ်းစားချိန် ၄ စက္ကန့်ခန့် ပြပြီးနောက် ပုံမှန်ပြန်ဖြစ်မည်
                (lastSensorState == 0 && currentTime - lastActionTime > 500)) {
         Serial.println(F("[Local AI] Idle -> Returning to Daily Schedule"));
         isIdle = true;

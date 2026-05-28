@@ -3,6 +3,7 @@
 #include <WebSocketsClient.h>
 #include "DisplayManager.h" 
 #include <time.h> // NTP အချိန်စနစ်သုံးရန်
+#include "MicrophoneManager.h"
 
 const char* ssid = "Redmi Note 13 Pro"; 
 const char* password = "11111111";
@@ -82,6 +83,14 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
               else setEyeNeutral();
             }
           }
+          // (ဃ) AI အသံကို ဖွင့်ရန် Command ဝင်လာလျှင်
+          else if (strcmp(action, "play_audio") == 0) {
+            const char* url = doc["url"];
+            if (url) {
+              extern void playAudioStream(const char* url); 
+              playAudioStream(url); // AI ၏ အသံကို စတင် Stream ဆွဲမည်
+            }
+          }
         }
       }
       break;
@@ -110,6 +119,11 @@ void initNetwork() {
 
 void updateNetwork() {
   webSocket.loop(); 
+
+  // 👈 အသစ်ထပ်ဖြည့်ရန် (Collision မဖြစ်စေရန် ဤနေရာမှသာ အသံပို့မည်)
+  if (isMicRecording) {
+      recordAndSendAudio(); 
+  }
 
   static unsigned long alarmStartTime = 0; // နှိုးစက်စမြည်သည့် အချိန်မှတ်ရန်
 

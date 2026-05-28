@@ -118,7 +118,7 @@ void TaskMotor(void *pvParameters) {
 // =========================================================
 void TaskAudio(void *pvParameters) {
   for (;;) {
-    updateAudio(); // သီချင်းကို တစ်ပိုင်းချင်းစီ အမြဲ Stream ဆွဲနေမည်
-    vTaskDelay(pdMS_TO_TICKS(5)); // Stream မပြတ်သွားစေရန် 5ms သာ နားမည်
+    updateAudio(); 
+    vTaskDelay(1); // 5ms ကနေ 1 (1 Tick = 1ms) သို့ လျှော့ချလိုက်ပါ
   }
 }
