@@ -35,3 +35,4 @@ When you use `delegate_task`, you MUST NOT summarize the user's request. You MUS
 - `delegate_task`: Assign work to a MANAGER.
 - `report_to_sir`: Use this ONLY when the final workflow is completed to report to Sir.
 - `publish_event`: Use this to put an event into the message broker if needed.
+- `manual_movie_trigger`: Use this tool IMMEDIATELY to manually post a movie. 🛑 CRITICAL: You MUST extract the Channel ID and Message ID from Sir's prompt and explicitly provide them as arguments (`channel_id` and `message_id`) to this tool. NEVER execute this tool with empty arguments.

@@ -609,87 +609,46 @@ async def process_and_publish_movie(client, source_message, raw_file_name, pre_f
 
 
 # ==========================================
-# 🛠️ MOVIE ENGINE ကို သီးသန့် စမ်းသပ်မည့် အပိုင်း
+# 🛠️ MANUAL TRIGGER FUNCTION (For Tool Usage)
 # ==========================================
-if __name__ == "__main__":
-    async def run_engine_test():
-        import asyncio
-        from pyrogram import Client
-        from config import Config
-        print("🚀 Core Engine Test Run စတင်နေပါပြီ...")
+async def trigger_manual_movie(channel_id: int, message_id: int) -> str:
+    # 🌟 THE FIX: အသစ်မဖွင့်တော့ဘဲ နောက်ကွယ်မှာ Run နေတဲ့ Userbot အစစ်ကို လှမ်းခေါ်သုံးမည်
+    from interfaces.userbot.secretary_main import app as userbot_app
+    
+    await start_core_clients()
+    
+    try:
+        # Message အစစ်ကို Userbot ကနေ လှမ်းယူခြင်း (သူများ Channel ဖြစ်လည်း ယူလို့ရသွားပါပြီ)
+        test_msg = await userbot_app.get_messages(channel_id, message_id)
         
-        # Publisher Bot ကို အသက်သွင်းမည်
-        await start_core_clients()
-        
-        # ⚠️ ဒီနေရာမှာ မင်းစမ်းချင်တဲ့ Monitor Channel ID နဲ့ Message ID ကို ပြင်ထည့်ပါ
-        TEST_CHANNEL_ID = -1003519309429 
-        TEST_MESSAGE_ID = 539            
-        
-        # 🌟 Test Run အတွက် Gateway Session ကို ယာယီ လှမ်းသုံးပါမည်
-        app = Client("jarvis_secretary", api_id=Config.API_ID, api_hash=Config.API_HASH, workdir="memory")
-        await app.start()
-        
-        try:
-            # --- [MAGIC FIX 0] Source Channel ကို မှတ်ဉာဏ်ထဲ အရင်ထည့်ခြင်း ---
-            print(f"🔄 Source Channel ID ({TEST_CHANNEL_ID}) ကို တိုက်ရိုက် ချိတ်ဆက်နေပါသည်...")
-            try:
-                await app.get_chat(TEST_CHANNEL_ID)
-            except Exception as e:
-                print(f"⚠️ Source Channel ကို တိုက်ရိုက်ယူ၍မရပါ။ Dialogs မှတ်ဉာဏ်ကို အတင်းခေါ်ပါမည်... (Error: {e})")
-                async for _ in app.get_dialogs():
-                    pass 
+        if getattr(test_msg, 'video', None) or getattr(test_msg, 'document', None):
+            media_obj = test_msg.video if test_msg.video else test_msg.document
+            raw_target_text = ""
             
-            # --- [MAGIC FIX 1] Storage Channel များကိုပါ မှတ်ဉာဏ်ထဲ ထည့်ခြင်း ---
-            print("🔄 Storage Channel များကို မှတ်ဉာဏ်ထဲ ကြိုတင်ထည့်သွင်းနေပါသည်...")
-            for channel_name, config in Config.CHANNELS_CONFIG.items():
+            if test_msg.caption:
+                raw_target_text += f"[Video Caption]: {test_msg.caption}\n"
+            
+            for offset in [1, 2]:
                 try:
-                    await app.get_chat(config["storage_id"])
-                    print(f"✅ {channel_name} Storage ကို မှတ်ဉာဏ်ထဲ ထည့်ပြီးပါပြီ။")
-                except Exception as e:
-                    print(f"⚠️ {channel_name} ကို တိုက်ရိုက်ယူ၍မရပါ။ (Error: {e})")
-
-            # ၁။ Message အစစ်ကို Telegram ကနေ လှမ်းယူခြင်း
-            test_msg = await app.get_messages(TEST_CHANNEL_ID, TEST_MESSAGE_ID)
+                    prev_msg = await userbot_app.get_messages(channel_id, message_id - offset)
+                    if prev_msg.caption:
+                        raw_target_text += f"[Post ID-{offset} Caption]: {prev_msg.caption}\n"
+                    elif prev_msg.text:
+                        raw_target_text += f"[Post ID-{offset} Text]: {prev_msg.text}\n"
+                except Exception: pass
+                
+            if not raw_target_text.strip():
+                raw_target_text = getattr(media_obj, 'file_name', "Unknown File")
+                
+            # Engine ထဲသို့ Userbot ကို အသုံးပြု၍ ထည့်သွင်းခြင်း
+            success = await process_and_publish_movie(userbot_app, test_msg, raw_file_name=raw_target_text)
             
-            # ၂။ အင်ဂျင်ထဲကို ထည့်ပြီး Run ကြည့်ခြင်း
-            if getattr(test_msg, 'video', None) or getattr(test_msg, 'document', None):
-                print(f"🎬 ဇာတ်ကားဖိုင် တွေ့ပါသည်၊ Engine ထဲသို့ တိုက်ရိုက်ပို့နေပါပြီ...")
-                
-                media_obj = test_msg.video if test_msg.video else test_msg.document
-                
-                # --- [MAJOR UPDATE] AI ကို Context အပြည့်အစုံ ပေးဖတ်မည့်စနစ် ---
-                raw_target_text = ""
-                
-                if test_msg.caption:
-                    raw_target_text += f"[Video Caption]: {test_msg.caption}\n"
-                
-                for offset in [1, 2]:
-                    try:
-                        prev_msg = await app.get_messages(TEST_CHANNEL_ID, TEST_MESSAGE_ID - offset)
-                        if prev_msg.caption:
-                            raw_target_text += f"[Post ID-{offset} Caption]: {prev_msg.caption}\n"
-                        elif prev_msg.text:
-                            raw_target_text += f"[Post ID-{offset} Text]: {prev_msg.text}\n"
-                    except Exception:
-                        pass
-                    
-                if not raw_target_text.strip():
-                    raw_target_text = getattr(media_obj, 'file_name', "Unknown File")
-                    
-                print("\n💡 AI ထံသို့ ခွဲခြမ်းစိတ်ဖြာရန် ပို့ဆောင်နေပါသည်...")
-                
-                # 🌟 [အရေးကြီးဆုံး ပြင်ဆင်ချက်] `app` (client) ကို Parameter အဖြစ် ထည့်ပေးရပါမည်
-                await process_and_publish_movie(app, test_msg, raw_file_name=raw_target_text)
-                
-                print("✅ Test Run အောင်မြင်စွာ ပြီးဆုံးပါပြီ! (Storage နဲ့ Public Channel တွေကို သွားစစ်ကြည့်ပါ)")
+            if success:
+                return f"✅ အောင်မြင်ပါသည်။ ဇာတ်ကားကို တင်ပေးလိုက်ပါပြီ။"
             else:
-                print("❌ အဆိုပါ ID တွင် ဇာတ်ကားဖိုင် မရှိပါ။ Message ID အမှန် ပြန်စစ်ပါ။")
-                
-        except Exception as e:
-            print(f"❌ Test Run တွင် Error တက်နေပါသည်: {e}")
-        finally:
-            await app.stop() # Test ပြီးလျှင် Session ပြန်ပိတ်ပေးမည်
+                return f"⚠️ ဇာတ်ကားတင်ခြင်း မအောင်မြင်ပါ သို့မဟုတ် တင်ပြီးသားဖြစ်နေပါသည်။"
+        else:
+            return f"❌ အဆိုပါ ID တွင် ဇာတ်ကားဖိုင် မရှိပါ။ Message ID အမှန် ပြန်စစ်ပါ။"
             
-    # Event Loop ဖြင့် Run ခြင်း
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(run_engine_test())
+    except Exception as e:
+        return f"❌ Error တက်နေပါသည်: {e}"
