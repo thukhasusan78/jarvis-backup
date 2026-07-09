@@ -49,6 +49,10 @@ class SQLStorage:
                     timestamp REAL
                 )
             ''')
+
+            cursor.execute('''CREATE TABLE IF NOT EXISTS secretary_state (
+                            key TEXT PRIMARY KEY,
+                            value TEXT NOT NULL)''')
             
             conn.commit()
             conn.close()
@@ -187,5 +191,40 @@ class SQLStorage:
             return True
         except Exception:
             return False
+
+    # ==========================================
+    # VIP Mute State (Secretary)
+    # ==========================================
+    def get_vip_mute_until(self, user_id: int) -> float:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM secretary_state WHERE key = ?", (f"vip_mute_{user_id}",))
+        row = cursor.fetchone()
+        conn.close()
+        return float(row[0]) if row else 0.0
+
+    def set_vip_mute_until(self, user_id: int, timestamp: float):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO secretary_state (key, value) VALUES (?, ?)", (f"vip_mute_{user_id}", str(timestamp)))
+        conn.commit()
+        conn.close()
+        
+    def get_vip_timestamps(self, user_id: int) -> list:
+        import json
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM secretary_state WHERE key = ?", (f"vip_timestamps_{user_id}",))
+        row = cursor.fetchone()
+        conn.close()
+        return json.loads(row[0]) if row else []
+
+    def set_vip_timestamps(self, user_id: int, timestamps: list):
+        import json
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO secretary_state (key, value) VALUES (?, ?)", (f"vip_timestamps_{user_id}", json.dumps(timestamps)))
+        conn.commit()
+        conn.close()        
 
 sql_storage = SQLStorage()

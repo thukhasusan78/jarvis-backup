@@ -5,6 +5,7 @@ from google import genai
 from google.genai import types
 from config import Config
 from core.registry import tool_registry
+from memory.memory_controller import memory_controller
 
 logger = logging.getLogger("SECRETARY_BRAIN")
 
@@ -17,16 +18,14 @@ class SecretaryBrain:
         base_prompt_dir = os.path.join(os.getcwd(), 'core', 'prompts')
         self.system_instruction = "You are Jarvis, an AI Secretary." 
         
-        for root, dirs, files in os.walk(base_prompt_dir):
-            if 'secretary.md' in files:
-                prompt_path = os.path.join(root, 'secretary.md')
-                try:
-                    with open(prompt_path, 'r', encoding='utf-8') as f:
-                        self.system_instruction = f.read()
-                        logger.info(f"✅ SUCCESS: Secretary Prompt ကို အောင်မြင်စွာ ဖတ်ယူနိုင်ပါပြီ။ ({prompt_path})")
-                    break 
-                except Exception as e:
-                    logger.error(f"❌ Error reading prompt: {e}")
+        # Prompt ဖိုင်ကို တိုက်ရိုက် လမ်းကြောင်းပေးပြီး ဖတ်မည်
+        prompt_path = os.path.join(os.getcwd(), 'core', 'prompts', 'secretary.md')
+        try:
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                self.system_instruction = f.read()
+                logger.info(f"✅ SUCCESS: Secretary Prompt ကို အောင်မြင်စွာ ဖတ်ယူနိုင်ပါပြီ။")
+        except Exception as e:
+            logger.error(f"❌ Error reading prompt: {e}")
         
         # --- NEW: SECRETARY အတွက် TOOL များ တပ်ဆင်ခြင်း ---
         self.tools_config = [
@@ -39,8 +38,18 @@ class SecretaryBrain:
         current_time = datetime.datetime.now(Config.TIMEZONE)
         time_str = current_time.strftime("%Y-%m-%d %I:%M %p")
         
-        # 🚀 AI ကို Chat ID နှင့် အချိန် သိအောင် သင်ပေးလိုက်ခြင်း
-        full_prompt = f"SYSTEM NOTE: The current Customer's Chat ID is {chat_id}. Current Myanmar Time is {time_str}.\n\nChat History:\n{chat_history_text}\n\nUser ({user_name}): {text}"
+        # --- NEW: RAG Retrieval from ChromaDB ---
+        rag_context = ""
+        try:
+            # Customer မေးတဲ့စာ (text) နဲ့ ကိုက်ညီတဲ့ အချက်အလက်တွေကို Database ထဲကနေ ဆွဲထုတ်မယ်
+            rag_facts = memory_controller.search_business_facts(text, limit=Config.CHROMA_TOP_K)
+            if rag_facts:
+                rag_context = f"\n\n[ LIVE BUSINESS KNOWLEDGE (Prioritize this over static instructions) ]\n{rag_facts}"
+        except Exception as e:
+            logger.warning(f"⚠️ RAG Retrieval Error: {e}")
+
+        # 🚀 AI ကို Chat ID, အချိန် နှင့် RAG Data ပါ ထည့်ပေးလိုက်ခြင်း
+        full_prompt = f"SYSTEM NOTE: The current Customer's Chat ID is {chat_id}. Current Myanmar Time is {time_str}.{rag_context}\n\nChat History:\n{chat_history_text}\n\nUser ({user_name}): {text}"
         
         # 🌟 ပြင်ဆင်ချက်: Main Brain အတိုင်း Key Rotation နှင့် Auto-Retry စနစ် ထည့်သွင်းခြင်း
         max_retries = 5

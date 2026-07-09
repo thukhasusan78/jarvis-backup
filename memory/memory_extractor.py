@@ -4,6 +4,8 @@ import asyncio
 import re
 from core.brain import JarvisBrain
 from memory.memory_controller import memory_controller
+from google import genai
+from config import Config
 
 logger = logging.getLogger("JARVIS_MEMORY_EXTRACTOR")
 
@@ -47,7 +49,11 @@ async def extract_and_store_memory(user_id: int, user_message: str, ai_response:
         if not text_result: return
             
         clean_json = re.sub(r"```json\n|\n```|```", "", text_result).strip()
-        data = json.loads(clean_json)
+        try:
+            data = json.loads(clean_json)
+        except json.JSONDecodeError as e:
+            logger.warning(f"⚠️ JSON Parse Error in Extractor: {e}. Raw: {clean_json[:200]}")
+            return
         
         # 1. Profile Facts (Short/Mid Term)
         if data.get("profile"):
@@ -80,3 +86,47 @@ async def extract_and_store_memory(user_id: int, user_message: str, ai_response:
 
     except Exception as e:
         logger.error(f"Auto-Memory Extraction Failed: {e}")
+
+async def extract_business_facts_from_admin_reply(chat_id: int, admin_message: str, recent_context: str = ""):
+    """Extracts operational business facts directly from the Admin's chat messages."""
+    
+    prompt = f"""
+    Analyze this Admin (Sir) reply in a customer DM thread.
+    Extract ONLY operational business facts: pricing, stock, delivery times, payment rules, product specs.
+    
+    Output JSON ONLY: {{"business_fact": [{{"category": "snake_case_key", "fact": "full sentence"}}]}}
+    
+    Rules:
+    - category must be stable snake_case (e.g. vpn_pricing, jammer_antenna_1_price)
+    - If no business fact (e.g., just greetings or small talk), return {{"business_fact": []}}
+    - Do NOT extract personal/chatty content
+    
+    Context:
+    {recent_context}
+    
+    Admin Reply: {admin_message}
+    """
+    
+    try:
+        client = genai.Client(api_key=Config.get_next_api_key())
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        
+        clean_json = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if not clean_json: return
+            
+        data = json.loads(clean_json.group(0))
+        facts = data.get("business_fact", [])
+        
+        for item in facts:
+            category = item.get("category")
+            fact = item.get("fact")
+            if category and fact:
+                memory_controller.save_business_fact(category, fact, source="admin")
+                logger.info(f"📈 Business Fact Updated: [{category}] {fact}")
+                
+    except Exception as e:
+        logger.error(f"⚠️ Admin Fact Extraction Failed: {e}")        

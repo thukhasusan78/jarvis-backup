@@ -66,6 +66,13 @@ class Config:
     # Knowledge Base သိမ်းမယ့် Vector DB
     VECTOR_DB_PATH = os.path.join("memory", "knowledge_lance")
 
+    # --- 🏢 Business RAG Memory (ChromaDB) ---
+    CHROMA_BUSINESS_PATH = os.path.join("memory", "chroma_business")
+    EMBEDDING_MODEL = "models/gemini-embedding-001"
+    CHROMA_COLLECTION = "business_facts"
+    CHROMA_TOP_K = 5
+    CHROMA_DISTANCE_THRESHOLD = 0.35
+
     # --- 🦊 Browser / Search Settings ---
     # RAM 2GB VPS ဖြစ်လို့ Headless (မျက်နှာပြင်မပေါ်) ပဲ run မယ်
     HEADLESS_BROWSER = True

@@ -15,6 +15,8 @@ class MemoryController:
     def __init__(self):
         self.sql = sql_storage
         self.vector = vector_storage
+        from memory.chroma_storage import business_fact_storage
+        self.chroma = business_fact_storage
         logger.info("🧠 Memory Controller (Hybrid Core) Online.")
 
     # ==========================================
@@ -62,6 +64,22 @@ class MemoryController:
 
     def delete_knowledge(self, query: str) -> bool:
         return self.vector.delete_knowledge(query)    
+
+    # ==========================================
+    # ၅။ Business Facts (Secretary RAG) -> ChromaDB
+    # ==========================================
+    def save_business_fact(self, category: str, fact: str, source: str = "admin") -> bool:
+        return self.chroma.upsert_fact(category, fact, source)
+
+    def search_business_facts(self, query: str, limit: int = 5) -> str:
+        results = self.chroma.search_facts(query, limit)
+        if not results: return ""
+        
+        formatted_facts = []
+        for meta, doc in zip(results.get("metadatas", [[]])[0], results.get("documents", [[]])[0]):
+            formatted_facts.append(f"- [{meta.get('category', 'fact')}] {doc}")
+            
+        return "\n".join(formatted_facts)    
 
 # Singleton အနေနဲ့ ထုတ်ပေးထားမယ်
 memory_controller = MemoryController()

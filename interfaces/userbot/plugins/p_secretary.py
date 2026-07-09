@@ -10,6 +10,7 @@ from pyrogram.raw.types import (
 )
 from interfaces.userbot.secretary_brain import SecretaryBrain
 from memory.sql_storage import sql_storage
+from memory.memory_extractor import extract_business_facts_from_admin_reply
 
 logger = logging.getLogger("P_SECRETARY")
 
@@ -33,6 +34,24 @@ async def track_human_activity(client, message):
     chat_id = message.chat.id
     human_active_chats[chat_id] = time.time()
     logger.info(f"👨‍💼 Human (Sir) replied to {chat_id}. Pausing Secretary for 10 mins.")
+
+    # --- NEW: Admin စာပို့ရင် Business Fact ပါမပါ စစ်ဆေးပြီး RAG ထဲထည့်မည် ---
+    if message.text:
+        try:
+            # ရှေ့က Chat History အနည်းငယ်ကို ဆွဲယူမည် (Context သိစေရန်)
+            recent_context = ""
+            async for msg in client.get_chat_history(chat_id, limit=3):
+                sender = "Sir" if msg.from_user and msg.from_user.is_self else "Customer"
+                txt = msg.text or msg.caption or ""
+                if txt:
+                    recent_context = f"{sender}: {txt}\n" + recent_context
+
+            # Background တွင် AI ကို ဖတ်ခိုင်းမည် (Admin စာရိုက်တာ မလေးသွားစေရန် Fire-and-Forget သုံးထားသည်)
+            asyncio.create_task(
+                extract_business_facts_from_admin_reply(chat_id, message.text, recent_context)
+            )
+        except Exception as e:
+            logger.error(f"⚠️ Admin Reply Extraction Error: {e}")
 
 async def process_secretary_reply(client, chat_id, user_name, user_text, is_bot=False):
     """(Shared Logic) စာဝင်လာလျှင်ဖြစ်စေ၊ Missed Call ဝင်လျှင်ဖြစ်စေ အလုပ်လုပ်မည့် Core Function"""
