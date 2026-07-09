@@ -3,7 +3,6 @@ import asyncio
 
 # ရှေ့မှာရေးခဲ့တဲ့ အလွှာ (၂) ခုကို လှမ်းခေါ်မယ်
 from memory.sql_storage import sql_storage
-from memory.vector_storage import vector_storage
 
 logger = logging.getLogger("JARVIS_MEMORY_CONTROLLER")
 
@@ -14,9 +13,8 @@ class MemoryController:
     """
     def __init__(self):
         self.sql = sql_storage
-        self.vector = vector_storage
-        from memory.chroma_storage import business_fact_storage
-        self.chroma = business_fact_storage
+        from memory.chroma_storage import chroma_storage
+        self.chroma = chroma_storage
         logger.info("🧠 Memory Controller (Hybrid Core) Online.")
 
     # ==========================================
@@ -53,17 +51,17 @@ class MemoryController:
         return self.sql.remove_ongoing_task(task_id)
 
     # ==========================================
-    # ၄။ Advanced Knowledge & Skills -> LanceDB (Vector)
+    # ၄။ Advanced Knowledge & Skills -> ChromaDB (Unified)
     # ==========================================
     def save_knowledge(self, category: str, task: str, solution: str, code_snippet: str = "") -> bool:
         """category: 'Fact', 'Mistake', 'Skill'"""
-        return self.vector.save_knowledge(category, task, solution, code_snippet)
+        return self.chroma.save_knowledge(category, task, solution, code_snippet)
 
     def search_knowledge(self, query: str, limit: int = 3) -> str:
-        return self.vector.search_knowledge(query, limit)
+        return self.chroma.search_knowledge(query, limit)
 
     def delete_knowledge(self, query: str) -> bool:
-        return self.vector.delete_knowledge(query)    
+        return self.chroma.delete_knowledge(query)   
 
     # ==========================================
     # ၅။ Business Facts (Secretary RAG) -> ChromaDB

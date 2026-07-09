@@ -19,7 +19,7 @@ class SecretaryBrain:
         self.system_instruction = "You are Jarvis, an AI Secretary." 
         
         # Prompt ဖိုင်ကို တိုက်ရိုက် လမ်းကြောင်းပေးပြီး ဖတ်မည်
-        prompt_path = os.path.join(os.getcwd(), 'core', 'prompts', 'secretary.md')
+        prompt_path = os.path.join(os.getcwd(), 'core', 'prompts', 'business','secretary.md')
         try:
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 self.system_instruction = f.read()

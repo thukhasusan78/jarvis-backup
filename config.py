@@ -63,8 +63,15 @@ class Config:
     # --- 💾 Memory Paths ---
     # Chat History သိမ်းမယ့် SQLite DB
     MEMORY_DB_PATH = os.path.join("memory", "jarvis_chat.db")
-    # Knowledge Base သိမ်းမယ့် Vector DB
-    VECTOR_DB_PATH = os.path.join("memory", "knowledge_lance")
+    # --- 🏢 Unified Vector Memory (ChromaDB) ---
+    CHROMA_DB_PATH = os.path.join("memory", "chroma_db")
+    EMBEDDING_MODEL = "models/gemini-embedding-001"
+    
+    CHROMA_BUSINESS_COLLECTION = "business_facts"  # For Secretary
+    CHROMA_KNOWLEDGE_COLLECTION = "ceo_knowledge"  # For Main CEO Agent
+    
+    CHROMA_TOP_K = 5
+    CHROMA_DISTANCE_THRESHOLD = 0.35
 
     # --- 🏢 Business RAG Memory (ChromaDB) ---
     CHROMA_BUSINESS_PATH = os.path.join("memory", "chroma_business")

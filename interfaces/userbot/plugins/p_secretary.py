@@ -34,24 +34,36 @@ async def track_human_activity(client, message):
     chat_id = message.chat.id
     human_active_chats[chat_id] = time.time()
     logger.info(f"👨‍💼 Human (Sir) replied to {chat_id}. Pausing Secretary for 10 mins.")
+    
+    # --- 🛑 THE FIX: Personal Chats & Small Talk Filter ---
+    # 1. VIP (Girlfriend/Friends) Chat ဆိုရင် RAG Extraction လုံးဝ မလုပ်ပါ
+    if chat_id == VIP_CHAT_ID:
+        return
 
-    # --- NEW: Admin စာပို့ရင် Business Fact ပါမပါ စစ်ဆေးပြီး RAG ထဲထည့်မည် ---
     if message.text:
-        try:
-            # ရှေ့က Chat History အနည်းငယ်ကို ဆွဲယူမည် (Context သိစေရန်)
-            recent_context = ""
-            async for msg in client.get_chat_history(chat_id, limit=3):
-                sender = "Sir" if msg.from_user and msg.from_user.is_self else "Customer"
-                txt = msg.text or msg.caption or ""
-                if txt:
-                    recent_context = f"{sender}: {txt}\n" + recent_context
+        text_lower = message.text.lower()
+        
+        # 2. ဂဏန်းပါမှ (သို့) ဈေးရောင်း/ဝယ် စကားလုံးပါမှသာ AI ကို ဖတ်ခိုင်းမည် (Token ချွေတာခြင်း)
+        has_numbers = any(char.isdigit() for char in text_lower)
+        biz_keywords = ["စျေး", "ကျပ်", "kpay", "wave", "kbz", "mmk", "price", "stock", "ပို့", "ရက်", "လ", "သိန်း", "ထောင်", "ဘတ်", "sold out"]
 
-            # Background တွင် AI ကို ဖတ်ခိုင်းမည် (Admin စာရိုက်တာ မလေးသွားစေရန် Fire-and-Forget သုံးထားသည်)
-            asyncio.create_task(
-                extract_business_facts_from_admin_reply(chat_id, message.text, recent_context)
-            )
-        except Exception as e:
-            logger.error(f"⚠️ Admin Reply Extraction Error: {e}")
+        if has_numbers or any(kw in text_lower for kw in biz_keywords):
+            try:
+                recent_context = ""
+                async for msg in client.get_chat_history(chat_id, limit=3):
+                    sender = "Sir" if msg.from_user and msg.from_user.is_self else "Customer"
+                    txt = msg.text or msg.caption or ""
+                    if txt:
+                        recent_context = f"{sender}: {txt}\n" + recent_context
+                
+                asyncio.create_task(
+                    extract_business_facts_from_admin_reply(chat_id, message.text, recent_context)
+                )
+            except Exception as e:
+                logger.error(f"⚠️ Admin Reply Extraction Error: {e}")
+        else:
+            # သာမန် စကားပြောသက်သက်ဖြစ်လျှင် AI သို့ မပို့ဘဲ ကျော်သွားမည်
+            logger.info("⏭️ Skipped Extraction: Just casual talk (No business data detected).")
 
 async def process_secretary_reply(client, chat_id, user_name, user_text, is_bot=False):
     """(Shared Logic) စာဝင်လာလျှင်ဖြစ်စေ၊ Missed Call ဝင်လျှင်ဖြစ်စေ အလုပ်လုပ်မည့် Core Function"""
