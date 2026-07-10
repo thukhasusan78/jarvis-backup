@@ -63,8 +63,8 @@ def recover_jarvis():
     logger.warning("Soft restart failed. Executing Git Hard Reset...")
 
     try:
-        subprocess.run(["git", "fetch", "origin", "main"], check=True)
-        subprocess.run(["git", "reset", "--hard", "origin/main"], check=True)
+        subprocess.run(["git", "fetch", "origin", "new-updates"], check=True)
+        subprocess.run(["git", "reset", "--hard", "origin/new-updates"], check=True)
         subprocess.run(["git", "clean", "-fd"], check=True)
 
         logger.info("Restarting Jarvis after Hard Reset...")
