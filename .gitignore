@@ -17,13 +17,15 @@ env/
 # 5. Database & Memory (Data တွေကို GitHub ပေါ် မတင်ချင်ရင်)
 # (Backup လိုချင်ရင်တော့ ဒါကို # ခံပြီး ဖွင့်ထားလို့ရတယ်၊ ဒါပေမဲ့ Data ကြီးရင် မတင်တာကောင်းတယ်)
 *.db
+*.bin
 *.sqlite3
 *.session
 *.session-journal
 memory/*.db
 memory/knowledge_lance/
 memory/browser_profile/
-memory/facebook_cookies.json
+memory/chroma_db/
+memory/chroma_business/
 memory/known_faces/
 custom_skills/
 workspace/
