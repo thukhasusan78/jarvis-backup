@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from pyrogram import Client, filters
+from pyrogram import Client
 from pyrogram.raw.types import UpdateNewChannelMessage
 from config import Config
 from core.movie_engine import process_and_publish_movie

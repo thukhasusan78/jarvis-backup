@@ -61,29 +61,49 @@ class SecretaryBrain:
                 api_key = Config.get_next_api_key()
                 client = genai.Client(api_key=api_key)
                 
-                response = await client.aio.models.generate_content(
-                    model=self.model_name,
-                    contents=full_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=self.system_instruction,
-                        temperature=0.7,
-                        tools=self.tools_config  
+                # 🔄 MULTI-STEP TOOL LOOP: Tool ရလဒ်တွေကို Model ဆီ ပြန်ပေးပြီး ဆက်လုပ်စေမည်
+                # (ဥပမာ - ပုံ ၂ ပုံ ဆက်တိုက်ပို့ခြင်း)။ Infinite Loop ကာကွယ်ရန် အများဆုံး ၃ ရှော့သာ ခွင့်ပြုမည်။
+                contents = full_prompt
+                MAX_TOOL_ITERATIONS = 3
+
+                for iteration in range(MAX_TOOL_ITERATIONS):
+                    response = await client.aio.models.generate_content(
+                        model=self.model_name,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            system_instruction=self.system_instruction,
+                            temperature=0.7,
+                            tools=self.tools_config
+                        )
                     )
-                )
-                
-                if response.function_calls:
+
+                    # Tool မခေါ်တော့ဘဲ Text အဖြေထွက်လာရင် ချက်ချင်း ပြန်ပေးမည်
+                    if not response.function_calls:
+                        return response.text if response.text else "..."
+
+                    # Tool (များ) အလုပ်လုပ်ပြီး ရလဒ်များ စုစည်းမည်
+                    tool_results_text = ""
                     for fc in response.function_calls:
                         tool_name = fc.name
                         tool_args = dict(fc.args) if fc.args else {}
                         logger.info(f"⚙️ Secretary triggering tool: {tool_name} with args: {tool_args}")
-                        
-                        # Tool အလုပ်လုပ်မည်
-                        await tool_registry.execute_tool(tool_name, **tool_args)
-                        
-                        if not response.text:
-                            return "ဟုတ်ကဲ့.. အချက်အလက်များကို လက်ခံရရှိပါပြီခင်ဗျာ။ ခဏလေး စောင့်ပေးပါနော်။"
 
-                return response.text if response.text else "..."
+                        tool_result = await tool_registry.execute_tool(tool_name, **tool_args)
+                        tool_results_text += f"[Tool '{tool_name}' Result]: {tool_result}\n"
+
+                    # ရလဒ်များကို ပေါင်းထည့်ပြီး နောက်တစ်ချက် ဆက်တွေးခိုင်းမည်
+                    contents = (
+                        f"{contents}\n\n{tool_results_text}\n"
+                        "Based on the tool result(s) above, continue: either call the NEXT needed tool to finish the customer's request, "
+                        "or reply to the customer naturally in short polite Burmese. "
+                        "If a background process was started (e.g. publish_event), tell the customer to wait a moment. "
+                        "If an action completed (e.g. photo sent), confirm it warmly."
+                    )
+                    logger.info(f"🔄 Tool loop iteration {iteration + 1}/{MAX_TOOL_ITERATIONS} completed.")
+
+                # ၃ ရှော့မျှ လုပ်ပြီးလည်း မပြီးသေးရင် (ရှားပါး) — Fail-safe အဖြေ
+                logger.warning("⚠️ Secretary tool loop hit max iterations. Returning fail-safe reply.")
+                return "ဟုတ်ကဲ့.. အချက်အလက်များကို လက်ခံရရှိပါပြီခင်ဗျာ။ ခဏလေး စောင့်ပေးပါနော်။"
                 
             except Exception as e:
                 logger.error(f"❌ Secretary API Error (Attempt {attempt+1}): {str(e)}")

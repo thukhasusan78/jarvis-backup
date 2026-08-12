@@ -1,10 +1,17 @@
 import os
+import time
 import asyncio
 import logging
 from perception.face_engine import face_engine
 from perception.vision_analyzer import analyze_image_with_gemini
+from memory.sql_storage import sql_storage
 
 logger = logging.getLogger("JARVIS_MEDIA_RECEIVER")
+
+# --- 🛡️ VISION QUOTA: Customer တစ်ယောက်ကို ၂၄ နာရီအတွင်း Gemini Vision Analyze အများဆုံး ၃ ခုသာ ---
+# (API Token ကာကွယ်ရန်။ Receipt Verification (payment_verifier) ကို ဒီ Limit ချိုးမထားပါ — ရောင်းဝယ်ရေးအတွက် အမြဲခွင့်ပြုထားသည်)
+VISION_LIMIT_PER_24H = 3
+VISION_WINDOW = 86400  # ၂၄ နာရီ (စက္ကန့်)
 
 # လုပ်ငန်းသုံး ပုံများအတွက် အဓိကရည်ရွယ်ချက်ပါဝင်သော Default Prompt
 VISION_BUSINESS_PROMPT = (
@@ -13,7 +20,7 @@ VISION_BUSINESS_PROMPT = (
     "ကုန်ပစ္စည်းပုံ/Error screenshot ဖြစ်ရင် ဘာပြဿနာ/ဘာပစ္စည်းလဲ ဖော်ပြပါ။"
 )
 
-async def process_incoming_image(file_path: str, caption: str = "") -> str:
+async def process_incoming_image(file_path: str, caption: str = "", chat_id: int = 0) -> str:
     """
     ပုံ ဝင်လာတိုင်း ဤ Function က လက်ခံမည်။
     Bottleneck မဖြစ်စေရန် CPU-heavy အလုပ်များကို နောက်ကွယ် (Thread) သို့ ပို့မည်။
@@ -24,14 +31,30 @@ async def process_incoming_image(file_path: str, caption: str = "") -> str:
     face_result = await asyncio.to_thread(face_engine.analyze_image, file_path)
 
     # 🧠 GEMINI DEEP VISION: ပုံထဲပါ အကြောင်းအရာကို AI နားလည်စေရန် ခွဲခြမ်းစိတ်ဖြာခြင်း
-    try:
-        vision_result = await analyze_image_with_gemini(file_path, VISION_BUSINESS_PROMPT)
-        if vision_result.startswith("❌") or vision_result.startswith("⚠️"):
-            logger.warning(f"Gemini Vision unavailable for {file_path}: {vision_result}")
+    # 🛡️ QUOTA CHECK: ၂၄ နာရီအတွင်း ၃ ခုကျော်သွားရင် Vision ကို ကျော်ပြီး Quota သက်သာမည်
+    vision_allowed = True
+    if chat_id:
+        now = time.time()
+        timestamps = await asyncio.to_thread(sql_storage.get_vision_timestamps, chat_id)
+        timestamps = [t for t in timestamps if now - t < VISION_WINDOW]
+        if len(timestamps) >= VISION_LIMIT_PER_24H:
+            vision_allowed = False
+            logger.warning(f"🛡️ Vision quota reached for chat {chat_id} ({len(timestamps)}/{VISION_LIMIT_PER_24H} in 24h). Skipping Gemini analysis.")
+        else:
+            timestamps.append(now)
+            await asyncio.to_thread(sql_storage.set_vision_timestamps, chat_id, timestamps)
+
+    if not vision_allowed:
+        vision_result = "unavailable (daily image analysis limit reached for this customer)"
+    else:
+        try:
+            vision_result = await analyze_image_with_gemini(file_path, VISION_BUSINESS_PROMPT)
+            if vision_result.startswith("❌") or vision_result.startswith("⚠️"):
+                logger.warning(f"Gemini Vision unavailable for {file_path}: {vision_result}")
+                vision_result = "unavailable"
+        except Exception as e:
+            logger.error(f"Gemini Vision failed for {file_path}: {e}")
             vision_result = "unavailable"
-    except Exception as e:
-        logger.error(f"Gemini Vision failed for {file_path}: {e}")
-        vision_result = "unavailable"
 
     # ရလာတဲ့ ရလဒ်ကိုများ AI ရဲ့ Context ထဲ ထည့်ပေးဖို့ စာသား ပြန်ထုတ်ပေးမည်
     context_msg = (

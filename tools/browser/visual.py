@@ -1,6 +1,5 @@
 import os
 import asyncio
-import base64
 import logging
 from typing import Dict, List
 from google.genai import types, Client

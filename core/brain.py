@@ -1,7 +1,6 @@
 import os
 import time
 import logging
-import asyncio
 from google import genai
 from google.genai import types
 from config import Config

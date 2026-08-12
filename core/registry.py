@@ -72,7 +72,7 @@ class ToolRegistry:
                     assigned_role = "web_surfer"
                 elif "tools.system.business_tools" in module:
                     # 🌟 THE FIX: Business Tool များကို သက်ဆိုင်ရာ Role များသာ မြင်ခွင့်ပေးခြင်း
-                    assigned_role = ["business_manager", "vpn_worker", "secretary"]
+                    assigned_role = ["business_manager", "secretary"]
                 elif "tools.system" in module:
                     if tool.name in ["delegate_task", "manage_schedule", "report_to_sir", "manual_movie_trigger"]:
                         assigned_role = "ceo"

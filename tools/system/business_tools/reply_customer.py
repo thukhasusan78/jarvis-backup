@@ -8,13 +8,13 @@ logger = logging.getLogger("REPLY_TOOL")
 
 class ReplyCustomerTool(BaseTool):
     name = "reply_to_customer"
-    description = "Send a Telegram message directly to the customer. Use this ONLY to deliver VPN keys or report exact errors back to the customer."
-    owner_role = "secretary" # Secretary သာလျှင် သုံးခွင့်ရှိသည်
+    description = "Send a Telegram message directly to the customer. Use this ONLY to deliver VIP invite links or report exact errors back to the customer."
+    owner_role = ["business_manager", "secretary"] # Business Manager (VIP fulfillment) နှင့် Secretary နှစ်ခုလုံး သုံးခွင့်ရှိသည်
 
     def get_parameters(self):
         return {
             "chat_id": types.Schema(type=types.Type.INTEGER, description="The exact Telegram Chat ID of the customer."),
-            "message": types.Schema(type=types.Type.STRING, description="The message to send (e.g., the VPN vless:// link).")
+            "message": types.Schema(type=types.Type.STRING, description="The message to send (e.g., the VIP invite link wrapped in <code> tags).")
         }
 
     async def execute(self, chat_id: int, message: str) -> str:

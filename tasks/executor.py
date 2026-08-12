@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from telegram import Bot
 from config import Config

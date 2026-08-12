@@ -66,13 +66,6 @@ class Config:
     CHROMA_TOP_K = 5
     CHROMA_DISTANCE_THRESHOLD = 0.35
 
-    # --- 🏢 Business RAG Memory (ChromaDB) ---
-    CHROMA_BUSINESS_PATH = os.path.join("memory", "chroma_business")
-    EMBEDDING_MODEL = "models/gemini-embedding-001"
-    CHROMA_COLLECTION = "business_facts"
-    CHROMA_TOP_K = 5
-    CHROMA_DISTANCE_THRESHOLD = 0.35
-
     # --- 🦊 Browser / Search Settings ---
     # RAM 2GB VPS ဖြစ်လို့ Headless (မျက်နှာပြင်မပေါ်) ပဲ run မယ်
     HEADLESS_BROWSER = True
@@ -88,6 +81,10 @@ class Config:
     # ==========================================
     API_ID = int(os.getenv("API_ID", 0))
     API_HASH = os.getenv("API_HASH", "")
+
+    # --- 💎 VIP Subscription Business ---
+    VIP_CHANNEL_ID = int(os.getenv("VIP_CHANNEL_ID", 0))
+    VIP_SUBSCRIPTION_PRICE_MMK = 35000
 
     # ==========================================
     # 🎬 MOVIE BOT CONFIGURATIONS

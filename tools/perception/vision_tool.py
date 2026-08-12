@@ -3,7 +3,7 @@ from perception.vision_analyzer import analyze_image_with_gemini
 
 class VisionTool(BaseTool):
     name = "analyze_image"
-    owner_role = ["ceo", "vpn_worker"] 
+    owner_role = ["ceo"]
     
     # 🔥 FIX: AI ကို "ဘယ်သူလဲမေးရင် Local AI ကိုပဲ ယုံ၊ Tool မသုံးနဲ့" လို့ အတိအကျ ညွှန်ကြားခြင်း
     description = """

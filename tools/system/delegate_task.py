@@ -18,8 +18,8 @@ class DelegateTaskTool(BaseTool):
         return {
             "agent_role": types.Schema(
                 type=types.Type.STRING,
-                enum=["se_manager", "creator_manager", "sysadmin", "web_surfer"],
-                description="Delegate strictly to: 'se_manager' for app/coding, 'creator_manager' for news/content/social media, 'sysadmin' for terminal/Linux, 'web_surfer' for browser interaction."
+                enum=["creator_manager", "sysadmin", "web_surfer"],
+                description="Delegate strictly to: 'creator_manager' for news/content/social media, 'sysadmin' for terminal/Linux, 'web_surfer' for browser interaction."
             ),
             "task_prompt": types.Schema(
                 type=types.Type.STRING,

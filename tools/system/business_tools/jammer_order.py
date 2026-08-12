@@ -1,6 +1,5 @@
 import logging
-from pydantic import BaseModel, Field
-from typing import Type
+from google.genai import types
 
 # ဆရာ့ရဲ့ မူရင်း BaseTool ကို လှမ်းခေါ်ခြင်း
 from tools.base import BaseTool
@@ -10,31 +9,28 @@ from config import Config
 
 logger = logging.getLogger(__name__)
 
-# ၁။ AI ဆီမှ တောင်းခံမည့် အချက်အလက်များ (Pydantic Schema)
-class RecordJammerOrderArgs(BaseModel):
-    chat_id: int = Field(..., description="Customer ၏ Chat ID")
-    customer_name: str = Field(..., description="Customer ၏ အမည်")
-    phone: str = Field(..., description="Customer ၏ ဖုန်းနံပါတ်")
-    city: str = Field(..., description="Customer ၏ မြို့")
-    address: str = Field(..., description="Customer ၏ လိပ်စာ အပြည့်အစုံ")
-    payment_type: str = Field(..., description="ငွေချေစနစ် (အိမ်ရောက်ငွေချေ သို့မဟုတ် ငွေကြိုရှင်း)")
-
-# ၂။ Main Tool Class
+# Main Tool Class
 class RecordJammerOrderTool(BaseTool):
     name = "record_jammer_order"
     description = "Jammer Order အချက်အလက်များကို လက်ခံပြီး ဆရာ့ထံသို့ ဘောက်ချာပို့ပေးမည့် Tool"
-    args_schema: Type[BaseModel] = RecordJammerOrderArgs
 
-    # 🌟 THE FIX: **kwargs ဖြင့် AI ပို့သမျှ Data ကို ဖမ်းယူခြင်း
-    async def execute(self, **kwargs) -> str:
+    # 🌟 THE FIX: Gemini Schema ကို BaseTool convention (get_parameters/get_required) နဲ့ ကြေညာခြင်း
+    # (Pydantic args_schema ကို get_declaration() က မဖတ်ဘူးမို့ parameter မပါတဲ့ Tool ဖြစ်နေခဲ့တယ်)
+    def get_parameters(self):
+        return {
+            "chat_id": types.Schema(type=types.Type.INTEGER, description="Customer ၏ Chat ID"),
+            "customer_name": types.Schema(type=types.Type.STRING, description="Customer ၏ အမည်"),
+            "phone": types.Schema(type=types.Type.STRING, description="Customer ၏ ဖုန်းနံပါတ်"),
+            "city": types.Schema(type=types.Type.STRING, description="Customer ၏ မြို့"),
+            "address": types.Schema(type=types.Type.STRING, description="Customer ၏ လိပ်စာ အပြည့်အစုံ"),
+            "payment_type": types.Schema(type=types.Type.STRING, description="ငွေချေစနစ် (အိမ်ရောက်ငွေချေ/COD သို့မဟုတ် ငွေကြိုရှင်း/Prepaid)")
+        }
+
+    def get_required(self):
+        return ["chat_id", "customer_name", "phone", "city", "address", "payment_type"]
+
+    async def execute(self, chat_id: int, customer_name: str, phone: str, city: str, address: str, payment_type: str) -> str:
         try:
-            # Data များ ဆွဲထုတ်ခြင်း
-            chat_id = kwargs.get("chat_id", "Unknown")
-            customer_name = kwargs.get("customer_name", "Unknown")
-            phone = kwargs.get("phone", "Unknown")
-            city = kwargs.get("city", "Unknown")
-            address = kwargs.get("address", "Unknown")
-            payment_type = kwargs.get("payment_type", "Unknown")
 
             # 📦 ဘောက်ချာ သပ်သပ်ရပ်ရပ် ဖန်တီးခြင်း
             order_receipt = (
@@ -45,7 +41,7 @@ class RecordJammerOrderTool(BaseTool):
                 f"🏙 မြို့: {city}\n"
                 f"💳 ငွေချေစနစ်: {payment_type}\n"
                 f"🏠 လိပ်စာ: {address}\n"
-                f"💬 Customer Chat ID: <code>{chat_id}</code>\n"
+                f"💬 Customer: <a href=\"tg://user?id={chat_id}\">{chat_id}</a> (နှိပ်ပြီး Chat တိုက်ရိုက်ဖွင့်နိုင်သည်)\n"
                 "━━━━━━━━━━━━━━━━━━━━"
             )
             

@@ -1,5 +1,4 @@
 import logging
-import asyncio
 
 # ရှေ့မှာရေးခဲ့တဲ့ အလွှာ (၂) ခုကို လှမ်းခေါ်မယ်
 from memory.sql_storage import sql_storage

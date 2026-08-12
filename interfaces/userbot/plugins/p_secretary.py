@@ -4,10 +4,6 @@ import logging
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.enums import ChatAction
-from pyrogram.raw.types import (
-    UpdateNewMessage, MessageService, MessageActionPhoneCall, 
-    PhoneCallDiscardReasonMissed, PeerUser
-)
 from interfaces.userbot.secretary_brain import SecretaryBrain
 from memory.sql_storage import sql_storage
 from memory.memory_extractor import extract_business_facts_from_admin_reply
@@ -21,6 +17,12 @@ except ValueError:
 
 human_active_chats = {}
 SILENCE_TIMEOUT = 600
+
+# --- 📸 Last Uploaded Image Tracker ---
+# Customer ပို့တဲ့ နောက်ဆုံးပုံရဲ့ File Path ကို မှတ်ထားမည် (Text-only follow-up တွေမှာပါ payment verify လုပ်နိုင်စေရန်)
+# Format: {chat_id: (file_path, uploaded_timestamp)}
+last_image_uploads = {}
+IMAGE_VALIDITY = 86400  # ၂၄ နာရီ (temp_media auto-delete နဲ့ ကိုက်ညီစေရန်)
 
 # --- 💔 VIP Ghosting Protocol Variables ---
 vip_message_timestamps = []
@@ -100,6 +102,19 @@ async def process_secretary_reply(client, chat_id, user_name, user_text, is_bot=
 
         user_text = f"[SYSTEM NOTE: VIP - GIRLFRIEND] {user_text}"
 
+    # --- 📸 Persist last image path across turns ---
+    # ပုံပို့ထားပြီးနောက် Text-only follow-up (ဥပမာ "လွှဲပြီးပါပြီ") ဝင်လာရင်
+    # Telegram history ထဲမှာ ပုံက "[Media/Sticker/Voice]" ပဲပေါ်တာမို့ Path ပါမသွားဘူး။
+    # ဒါကြောင့် နောက်ဆုံးပုံရဲ့ Path ကို ဒီမှာ SYSTEM NOTE အဖြစ် ပြန်ထည့်ပေးမည်။
+    if "[SYSTEM: User uploaded an image" not in user_text:
+        last_img = last_image_uploads.get(chat_id)
+        if last_img:
+            img_path, img_ts = last_img
+            if time.time() - img_ts < IMAGE_VALIDITY:
+                user_text += f"\n[SYSTEM NOTE: This customer's most recent uploaded image is still available at File Path: '{img_path}'. Use this path if you need to publish a payment-verification event.]"
+            else:
+                last_image_uploads.pop(chat_id, None)
+
     # Chat History (၁၀ ကြောင်း) ဆွဲထုတ်ခြင်း
     real_history = []
     async for msg in client.get_chat_history(chat_id, limit=10):
@@ -134,19 +149,38 @@ async def handle_incoming_messages(client, message):
         user_text = ""
         
         if message.photo:
-            import os
-            import time
-            from perception.media_receiver import process_incoming_image 
-            
+            from perception.media_receiver import process_incoming_image
+
             os.makedirs("workspace/temp_media", exist_ok=True)
             file_path = os.path.join("workspace", "temp_media", f"img_{chat_id}_{int(time.time())}.jpg")
             
             logger.info(f"📸 Downloading photo from {user_name}...")
             await message.download(file_name=file_path)
             caption = message.caption or message.text or ""
-            user_text = await process_incoming_image(file_path, caption)
+            last_image_uploads[chat_id] = (file_path, time.time())  # 📸 နောက်ထပ် text-only turn တွေအတွက် Path မှတ်ထားခြင်း
+            user_text = await process_incoming_image(file_path, caption, chat_id=chat_id)
             
         elif message.text:
+            # --- 🧹 /clear Command: Customer ကိုယ်တိုင် Chat History ရှင်းလင်းနိုင်ရန် ---
+            if message.text.strip().lower() in ("/clear", "/new", "/restart"):
+                logger.info(f"🧹 /clear command received from {user_name} (ID: {chat_id})")
+                try:
+                    # 1. Telegram ဘက်ခြမ်း Message များ (နောက်ဆုံး ၁၀၀) ကို နှစ်ဘက်စလုံးအတွက် ဖျက်ခြင်း
+                    msg_ids = [m.id async for m in client.get_chat_history(chat_id, limit=100)]
+                    if msg_ids:
+                        await client.delete_messages(chat_id, msg_ids)
+                except Exception as e:
+                    logger.error(f"⚠️ Failed to delete Telegram messages for {chat_id}: {e}")
+                # 2. Jarvis ရဲ့ Internal Memory (SQL), Image Tracker နှင့် Vision Quota ကို ရှင်းလင်းခြင်း
+                await asyncio.to_thread(sql_storage.clear_history, chat_id)
+                await asyncio.to_thread(sql_storage.set_vision_timestamps, chat_id, [])
+                last_image_uploads.pop(chat_id, None)
+                await client.send_message(
+                    chat_id,
+                    "🧹 စကားပြောခင်း မှတ်တမ်းအားလုံး ရှင်းလင်းပြီးပါပြီ။ အစကနေ ပြန်လည် စတင်နိုင်ပါပြီခင်ဗျာ။"
+                )
+                return
+
             user_text = message.text
             
         if not user_text and not message.media:

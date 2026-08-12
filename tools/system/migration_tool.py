@@ -1,5 +1,4 @@
 import os
-import shutil
 import paramiko
 import logging
 from typing import Dict, List

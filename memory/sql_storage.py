@@ -225,6 +225,27 @@ class SQLStorage:
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO secretary_state (key, value) VALUES (?, ?)", (f"vip_timestamps_{user_id}", json.dumps(timestamps)))
         conn.commit()
-        conn.close()        
+        conn.close()
+
+    # ==========================================
+    # Vision Quota (Gemini Vision Analysis Limit per Customer)
+    # ==========================================
+    def get_vision_timestamps(self, user_id: int) -> list:
+        """Customer တစ်ယောက်ရဲ့ နောက်ဆုံး ၂၄ နာရီအတွင်း Vision Analyze လုပ်ခဲ့တဲ့ အချိန်များ"""
+        import json
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM secretary_state WHERE key = ?", (f"vision_ts_{user_id}",))
+        row = cursor.fetchone()
+        conn.close()
+        return json.loads(row[0]) if row else []
+
+    def set_vision_timestamps(self, user_id: int, timestamps: list):
+        import json
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO secretary_state (key, value) VALUES (?, ?)", (f"vision_ts_{user_id}", json.dumps(timestamps)))
+        conn.commit()
+        conn.close()
 
 sql_storage = SQLStorage()

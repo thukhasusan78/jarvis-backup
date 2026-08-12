@@ -29,6 +29,5 @@ memory/chroma_business/
 memory/known_faces/
 custom_skills/
 workspace/
-*.md
 *.yml
 *.deb

@@ -35,15 +35,11 @@ class ContextManager:
 Main AI (CEO) MUST NEVER assign tasks directly to Worker Agents. Always delegate to the respective Managers.
 
 1. 👑 EXECUTIVE TIER (Report Directly to CEO):
-   - se_manager: Head of Software Engineering (App, Website, Coding)
    - creator_manager: Head of Creator & Research Team (News, Social Media, Content)
    - sysadmin: Server/Terminal Management.
    - web_surfer: Browser Automation & Captcha solving.
 
-2. 🛠️ SE TEAM WORKERS (Managed ONLY by se_manager):
-   - planner, coder, frontend_coder, qa_tester, deployer.
-
-3. 📝 CREATOR TEAM WORKERS (Managed ONLY by creator_manager):
+2. 📝 CREATOR TEAM WORKERS (Managed ONLY by creator_manager):
    - deep_researcher, content_writer, researcher.
 
 🔄 [DYNAMIC WORKFLOW & MESSAGE BROKER PROTOCOL]

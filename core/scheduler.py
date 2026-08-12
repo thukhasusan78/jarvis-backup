@@ -2,9 +2,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.triggers.cron import CronTrigger
 import logging
-import os
 from config import Config
-import pytz
 from tasks.executor import run_scheduled_task 
 from apscheduler.triggers.date import DateTrigger
 from datetime import datetime

@@ -1,7 +1,5 @@
 import subprocess
 import logging
-import signal
-import os
 from typing import Dict, List
 from google.genai import types
 

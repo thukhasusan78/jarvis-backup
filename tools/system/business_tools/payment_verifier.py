@@ -16,10 +16,14 @@ class PaymentVerifierTool(BaseTool):
     def get_parameters(self):
         return {
             "image_path": types.Schema(type=types.Type.STRING, description="The file path of the receipt image."),
-            "customer_name": types.Schema(type=types.Type.STRING, description="The name of the customer.")
+            "customer_name": types.Schema(type=types.Type.STRING, description="The name of the customer."),
+            "min_amount": types.Schema(type=types.Type.INTEGER, description="Minimum acceptable paid amount in MMK. Default 35000 (VIP subscription price). Pass 0 to skip the amount check (e.g. for Jammer COD deposit receipts).")
         }
 
-    async def execute(self, image_path: str, customer_name: str) -> str:
+    def get_required(self):
+        return ["image_path", "customer_name"]
+
+    async def execute(self, image_path: str, customer_name: str, min_amount: int = 35000) -> str:
         logger.info(f"🔍 [ANTI-FRAUD] Verifying payment receipt for {customer_name}...")
         
         import datetime
@@ -61,7 +65,13 @@ class PaymentVerifierTool(BaseTool):
             amount = str(data.get("amount", "")).strip()
             recipient_name = str(data.get("recipient_name", "")).strip().lower()
             is_within_2_hours = data.get("is_within_2_hours", True)
-            
+
+            # --- 💰 ငွေပမာဏ လုံလောက်မှု စစ်ဆေးခြင်း (default: VIP 35,000 MMK) ---
+            amount_digits = re.sub(r'\D', '', amount)
+            paid_amount = int(amount_digits) if amount_digits else 0
+            if min_amount > 0 and paid_amount < min_amount:
+                return f"❌ Verification Failed: ငွေပမာဏ မလုံလောက်ပါ။ အနည်းဆုံး {min_amount:,} MMK ဖြစ်ရပါမည်။ (လွှဲထားငွေ: {paid_amount:,} MMK)"
+
             if len(txn_id) < 6:
                 return f"❌ Verification Failed: လုပ်ငန်းစဉ်အမှတ် ({txn_id}) မှာ တိုလွန်းနေသဖြင့် အတုဖြစ်နိုင်ပါသည်။"
 
@@ -76,12 +86,12 @@ class PaymentVerifierTool(BaseTool):
 
             # ၂။ Database ထဲတွင် သွားရောက်တိုက်စစ်ခြင်း (The Iron Logic)
             if is_transaction_exists(txn_id):
-                return f"🚫 [FRAUD ALERT]: လုပ်ငန်းစဉ်အမှတ် {txn_id} သည် အရင်က သုံးပြီးသား ပြေစာအဟောင်း ဖြစ်နေပါသည်။ ချက်ချင်း ငြင်းပယ်ပြီး Customer ထံသို့ အသိပေးပါ။ (DO NOT generate a key!)"
+                return f"🚫 [FRAUD ALERT]: လုပ်ငန်းစဉ်အမှတ် {txn_id} သည် အရင်က သုံးပြီးသား ပြေစာအဟောင်း ဖြစ်နေပါသည်။ ချက်ချင်း ငြင်းပယ်ပြီး Customer ထံသို့ အသိပေးပါ။ (DO NOT generate an invite link!)"
                 
             # ၃။ အသစ်ဖြစ်နေပါက Ledger ထဲတွင် မှတ်တမ်းတင်ထားမည်
             record_transaction(txn_id, amount, customer_name, "VERIFIED")
             
-            return f"✅ SUCCESS: ပြေစာအမှတ် {txn_id} ({amount} MMK) မှာ အသစ်ဖြစ်ပြီး မှန်ကန်ပါသည်။ VPN Key ဆက်လက် ထုတ်ပေးနိုင်ပါသည်။"
+            return f"✅ SUCCESS: ပြေစာအမှတ် {txn_id} ({amount} MMK) မှာ အသစ်ဖြစ်ပြီး မှန်ကန်ပါသည်။ VIP channel invite link ထုတ်ပေးနိုင်ပါသည်။"
 
         except Exception as e:
             logger.error(f"Payment Verifier Error: {e}")
