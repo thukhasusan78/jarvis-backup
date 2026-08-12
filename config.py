@@ -3,13 +3,6 @@ from dotenv import load_dotenv
 from itertools import cycle
 import pytz
 
-os.environ["http_proxy"] = "socks5://127.0.0.1:40000"
-os.environ["https_proxy"] = "socks5://127.0.0.1:40000"
-os.environ["all_proxy"] = "socks5://127.0.0.1:40000"
-
-os.environ["NO_PROXY"] = "api.telegram.org,telegram.org,core.telegram.org,127.0.0.1,localhost"
-os.environ["no_proxy"] = "api.telegram.org,telegram.org,core.telegram.org,127.0.0.1,localhost"
-
 # .env ဖိုင်ထဲက အချက်အလက်တွေကို ဆွဲယူခြင်း
 load_dotenv()
 

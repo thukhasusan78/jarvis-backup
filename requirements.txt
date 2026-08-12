@@ -31,7 +31,6 @@ apscheduler
 sqlalchemy
 
 # --- MEMORY --- 
-lancedb
 chromadb>=0.6.0
 sentence-transformers
 
