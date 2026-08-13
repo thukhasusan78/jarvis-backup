@@ -36,20 +36,35 @@ async def send_dynamic_response(bot, chat_id: int, text: str):
         caption="📄 အဖြေရှည်လွားသဖြင့် ဖိုင်အဖြစ် ပို့ပေးလိုက်ပါသည် ဆရာ။"
     )
 
+def _is_owner(user_id: int) -> bool:
+    """Fail closed: owner ACL must be configured and match."""
+    if not Config.ALLOWED_USER_ID or Config.ALLOWED_USER_ID <= 0:
+        return False
+    return user_id == Config.ALLOWED_USER_ID
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_owner(update.effective_user.id):
+        await update.message.reply_text("⛔ Access Denied.")
+        return
     user_name = update.effective_user.first_name
     await update.message.reply_text(f"မင်္ဂလာပါ {user_name} ခင်ဗျာ။ ကျွန်တော် Jarvis ပါ။\nဘာကူညီပေးရမလဲ?")
 
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_owner(update.effective_user.id):
+        await update.message.reply_text("⛔ Access Denied.")
+        return
     help_text = "🛠 **Jarvis Capabilities:**\n1. Chat & Coding\n2. Web Search\n3. OS Control\nJust type what you want!"
     await update.message.reply_text(help_text)
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
-    # Security Check
-    if Config.ALLOWED_USER_ID and user_id != Config.ALLOWED_USER_ID:
+    # Security Check — fail closed
+    if not _is_owner(user_id):
         await update.message.reply_text("⛔ Access Denied.")
         return
 

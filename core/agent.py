@@ -183,6 +183,5 @@ class JarvisAgent:
         return "\n".join(text_parts) if text_parts else "..."
 
     async def _execute_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
-     """Tool Execution Hub (Powered by Registry)"""
-     # ရလာတဲ့ Tool နာမည်နဲ့ Data ကို Registry ဆီ လှမ်းပို့လိုက်ရုံပဲ၊ သူဘာသာ အကုန်လုပ်သွားမယ်
-     return await tool_registry.execute_tool(tool_name, **args)
+        """Tool Execution Hub (Powered by Registry) — role enforced at runtime."""
+        return await tool_registry.execute_tool(tool_name, caller_role=self.role, **args)

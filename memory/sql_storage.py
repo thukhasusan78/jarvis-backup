@@ -3,6 +3,7 @@ import time
 import logging
 import os
 from config import Config
+from core.db import connect_db
 
 logger = logging.getLogger("JARVIS_SQL_STORAGE")
 
@@ -13,9 +14,12 @@ class SQLStorage:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
 
+    def _connect(self):
+        return connect_db(self.db_path)
+
     def _init_db(self):
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self._connect()
             cursor = conn.cursor()
             
             # ၁။ Short-term Memory (စကားဝိုင်း မှတ်တမ်း)
@@ -65,7 +69,7 @@ class SQLStorage:
     # ==========================================
     def add_message(self, user_id, role, content):
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO chat_history (user_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
@@ -78,7 +82,7 @@ class SQLStorage:
 
     def get_chat_history(self, user_id, limit=10):
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self._connect()
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(
@@ -97,7 +101,7 @@ class SQLStorage:
 
     def clear_history(self, user_id):
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self._connect()
             cursor = conn.cursor()
             cursor.execute("DELETE FROM chat_history WHERE user_id = ?", (user_id,))
             conn.commit()
@@ -111,7 +115,7 @@ class SQLStorage:
     # ==========================================
     def update_profile(self, user_id, key, value):
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT OR REPLACE INTO user_profile (user_id, key_name, value_text) VALUES (?, ?, ?)",
@@ -126,7 +130,7 @@ class SQLStorage:
 
     def get_user_profile(self, user_id):
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self._connect()
             cursor = conn.cursor()
             cursor.execute("SELECT key_name, value_text FROM user_profile WHERE user_id = ?", (user_id,))
             rows = cursor.fetchall()
@@ -148,7 +152,7 @@ class SQLStorage:
     def add_ongoing_task(self, user_id, task_description):
         """အလုပ်တစ်ခု စလုပ်တိုင်း ဒီမှာ လာမှတ်ထားမယ်"""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self._connect()
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO ongoing_tasks (user_id, task_description, status, timestamp) VALUES (?, ?, ?, ?)",
@@ -164,7 +168,7 @@ class SQLStorage:
     def get_ongoing_tasks(self, user_id):
         """လက်ရှိ ဘာအလုပ်တွေ တန်းလန်းဖြစ်နေလဲ ပြန်ဆွဲထုတ်မယ်"""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self._connect()
             cursor = conn.cursor()
             cursor.execute("SELECT id, task_description, status FROM ongoing_tasks WHERE user_id = ?", (user_id,))
             rows = cursor.fetchall()
@@ -183,7 +187,7 @@ class SQLStorage:
     def remove_ongoing_task(self, task_id):
         """အလုပ်ပြီးသွားရင် ပြန်ဖျက်မယ်"""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self._connect()
             cursor = conn.cursor()
             cursor.execute("DELETE FROM ongoing_tasks WHERE id = ?", (task_id,))
             conn.commit()
@@ -196,7 +200,7 @@ class SQLStorage:
     # VIP Mute State (Secretary)
     # ==========================================
     def get_vip_mute_until(self, user_id: int) -> float:
-        conn = sqlite3.connect(self.db_path)
+        conn = self._connect()
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM secretary_state WHERE key = ?", (f"vip_mute_{user_id}",))
         row = cursor.fetchone()
@@ -204,7 +208,7 @@ class SQLStorage:
         return float(row[0]) if row else 0.0
 
     def set_vip_mute_until(self, user_id: int, timestamp: float):
-        conn = sqlite3.connect(self.db_path)
+        conn = self._connect()
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO secretary_state (key, value) VALUES (?, ?)", (f"vip_mute_{user_id}", str(timestamp)))
         conn.commit()
@@ -212,7 +216,7 @@ class SQLStorage:
         
     def get_vip_timestamps(self, user_id: int) -> list:
         import json
-        conn = sqlite3.connect(self.db_path)
+        conn = self._connect()
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM secretary_state WHERE key = ?", (f"vip_timestamps_{user_id}",))
         row = cursor.fetchone()
@@ -221,7 +225,7 @@ class SQLStorage:
 
     def set_vip_timestamps(self, user_id: int, timestamps: list):
         import json
-        conn = sqlite3.connect(self.db_path)
+        conn = self._connect()
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO secretary_state (key, value) VALUES (?, ?)", (f"vip_timestamps_{user_id}", json.dumps(timestamps)))
         conn.commit()
@@ -233,7 +237,7 @@ class SQLStorage:
     def get_vision_timestamps(self, user_id: int) -> list:
         """Customer တစ်ယောက်ရဲ့ နောက်ဆုံး ၂၄ နာရီအတွင်း Vision Analyze လုပ်ခဲ့တဲ့ အချိန်များ"""
         import json
-        conn = sqlite3.connect(self.db_path)
+        conn = self._connect()
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM secretary_state WHERE key = ?", (f"vision_ts_{user_id}",))
         row = cursor.fetchone()
@@ -242,10 +246,67 @@ class SQLStorage:
 
     def set_vision_timestamps(self, user_id: int, timestamps: list):
         import json
-        conn = sqlite3.connect(self.db_path)
+        conn = self._connect()
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO secretary_state (key, value) VALUES (?, ?)", (f"vision_ts_{user_id}", json.dumps(timestamps)))
         conn.commit()
         conn.close()
+
+    # ==========================================
+    # Persisted Secretary runtime state
+    # ==========================================
+    def get_last_image(self, chat_id: int):
+        """Return (path, timestamp) or None."""
+        import json
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM secretary_state WHERE key = ?", (f"last_image_{chat_id}",))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return None
+        try:
+            data = json.loads(row[0])
+            return data.get("path"), float(data.get("ts", 0))
+        except Exception:
+            return None
+
+    def set_last_image(self, chat_id: int, path: str, ts: float = None):
+        import json
+        conn = self._connect()
+        cursor = conn.cursor()
+        payload = json.dumps({"path": path, "ts": ts if ts is not None else time.time()})
+        cursor.execute(
+            "INSERT OR REPLACE INTO secretary_state (key, value) VALUES (?, ?)",
+            (f"last_image_{chat_id}", payload),
+        )
+        conn.commit()
+        conn.close()
+
+    def clear_last_image(self, chat_id: int):
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM secretary_state WHERE key = ?", (f"last_image_{chat_id}",))
+        conn.commit()
+        conn.close()
+
+    def get_human_active_until(self, chat_id: int) -> float:
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM secretary_state WHERE key = ?", (f"human_active_{chat_id}",))
+        row = cursor.fetchone()
+        conn.close()
+        return float(row[0]) if row else 0.0
+
+    def set_human_active(self, chat_id: int, timestamp: float = None):
+        conn = self._connect()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO secretary_state (key, value) VALUES (?, ?)",
+            (f"human_active_{chat_id}", str(timestamp if timestamp is not None else time.time())),
+        )
+        conn.commit()
+        conn.close()
+
 
 sql_storage = SQLStorage()

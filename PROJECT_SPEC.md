@@ -1,8 +1,57 @@
 # PROJECT SPEC: Jarvis v2.1.0 — Secretary Vision, VIP Sales, Jammer Orders, Hardening
 
-> **Status: see "Required Changes (2026-08-13)" below.** This file (formerly `spec.md`) is the single source of truth for future agents. The sections under "Historical record" reflect the committed codebase.
+> **Status: see "Production Hardening Round (2026-08-13)" directly below for the current state of the codebase.** Older "QA result" / test-count lines in dated sections are historical records of those rounds, not the current state. This file (formerly `spec.md`) is the single source of truth for future agents. The sections under "Historical record" reflect the committed codebase.
 >
 > ⚠️ **INCIDENT (2026-08-13):** `watchdog.py`'s hard-recovery (`git fetch` + `git reset --hard origin/new-updates` + `git clean -fd`) fired and **wiped all uncommitted round-2 work** (jammer antenna model, proactive-message history persistence, prompt updates, test updates, this file's rename). Those changes are re-listed below as requirements and have been **re-applied** (see ✅ markers). Round-1 hardening (committed) survived.
+
+## 🛡️ Production Hardening Round (2026-08-13) — ✅ DONE
+
+Full architecture audit → 5-phase hardening. **62/62 smoke tests passing, compileall clean, 26 tools load with zero import errors.**
+
+### H1. Security boundaries — ✅
+- `Config.validate_required()` fails startup closed when `ALLOWED_USER_ID`/`TELEGRAM_TOKEN`/`GEMINI_API_KEYS` are missing (`config.py`, called from `main.py` lifespan). Telegram `/start`, `/help`, and message handlers all fail closed when the owner ID is unset.
+- **Runtime role enforcement:** `tool_registry.execute_tool(tool_name, caller_role=...)` now blocks disallowed roles at execution time, not just at declaration. Both agent loops (`core/agent.py`, `interfaces/userbot/secretary_brain.py`, `core/brain.py` streaming) pass their role.
+- `shell_exec` runs **argv-only** (`shell=False`, `shlex.split`); shell metacharacters (pipes/redirects/substitution) rejected; destructive binaries (`rm`, `dd`, `shutdown`, …) blocked; protected paths only readable via a read-only command allowlist.
+- `backup_code` uses argv git commands; never interpolates commit messages into shell; unstages `.env`/sessions/keys before committing.
+- `manage_file` blocks read/write/list of `.env`, `*.session`, `*.pem`, `*.key`, `.ssh/` etc. via `core/security.py::is_secret_path`.
+- `manage_migration` zip **excludes secrets**; SFTP uses `RejectPolicy` + `~/.ssh/known_hosts` (no AutoAdd). `ssh_remote_exec` same policy; passwords never logged.
+- `/health` endpoint added to `main.py`. Voice pipeline auth explicitly out of scope this cycle.
+
+### H2. Sales workflow correctness — ✅
+- **Single source of truth:** `core/business_catalog.py` holds VIP price (35,000), jammer models/prices (2-Ant 140,000 / 3-Ant 190,000), Mandalay deposit (10,000), and `PRODUCT_CAPTIONS`. `Config.VIP_SUBSCRIPTION_PRICE_MMK` imports from the catalog.
+- **VIP vs jammer separation:** new event `VERIFY_AND_FULFILL_JAMMER` (verify → `record_jammer_order`); VIP path unchanged (`VERIFY_AND_FULFILL_SUBSCRIPTION` → verify → invite → reply). Prompts forbid cross-product tool use.
+- **Structured event payloads:** `publish_event` accepts `product`, `chat_id`, `image_path`, `customer_name`, `jammer_model`, `phone`, `city`, `address`, `payment_type`, `min_amount`, `end_goal` (legacy free-text `data` still supported). Target agents restricted to an allowlist. Business events are validated for required fields before publishing.
+- **Idempotent payment lifecycle:** ledger `PENDING → VERIFIED → FULFILLED|FAILED` (`memory/business_storage.py`). `verify_payment` records VERIFIED only after all checks; `generate_vip_invite_link(payment_txn_id=...)` marks FULFILLED on success; a VERIFIED-but-unfulfilled txn can be re-fulfilled without re-accepting the receipt. Duplicate inserts return False (race-safe).
+- **Jammer orders persisted:** new `jammer_orders` table; `record_jammer_order` is `owner_role="business_manager"` only (Secretary can no longer call it directly); receipts include `Order #`.
+- **Customer-messaging adapter:** `interfaces/customer_messaging.py` — business tools no longer touch `sys.modules` directly.
+
+### H3. VIP customer-name & invite fixes (live incident 2026-08-13) — ✅
+- **Incident:** Secretary asked the customer for a name mid-VIP-flow (first event omitted `customer_name`); separately `generate_vip_invite_link` failed with `Peer id invalid: -1003824267490`.
+- **Fixes:** `SecretaryBrain.reply` injects `chat_id` + Telegram display name into business `publish_event` calls; `publish_event` derives `Telegram Customer {chat_id}` fallback; `verify_payment`/`generate_vip_invite_link` no longer hard-require `customer_name`; prompts state a separate name is never needed for VIP.
+- **Peer resolution:** `customer_messaging.resolve_chat()` warms the Pyrogram dialog cache before `create_chat_invite_link`; `secretary_main` preflights `VIP_CHANNEL_ID` at startup and logs the resolved channel title. Note: "Peer id invalid" means the userbot session has never seen that channel — the userbot account must be a member/admin of the VIP channel. Restricted-content settings do NOT block invite creation.
+- Smoke tests cover: omitted-name VIP event, deterministic fallback label, dialog-cache invite resolution.
+
+### H4. Event & concurrency reliability — ✅
+- **Broker claim model:** `core/message_broker.py` — `PENDING → IN_PROGRESS → COMPLETED|FAILED|DEAD` with `attempts`, `max_attempts` (default 3), `lease_until`, `last_error`, timestamps. `claim_next_event()` uses `BEGIN IMMEDIATE` for atomic claims; expired leases are reclaimed; exhausted/poison events go DEAD instead of looping.
+- **Orchestrator:** completes events only after the agent finishes; bounded concurrency (semaphore=3); nested prompt resolution (`core/prompts/business/secretary.md` etc.); API/system errors retry via the broker.
+- **SQLite WAL + busy_timeout** via `core/db.py::connect_db` — used by broker, business ledger, chat storage, and movie repository.
+- **Secretary state persisted:** VIP mute, per-chat last-image path, and human-activity timestamps now survive restarts (`secretary_state` table; in-memory dicts are only a cache).
+- `workspace/square.md` is appended + trimmed (32KB) instead of deleted on every owner message.
+
+### H5. Quality gates & maintainability — ✅
+- `tests/smoke_tests.py`: 62 offline checks (guards, captions, role enforcement, broker claim/retry/poison, ledger lifecycle, structured events, config fail-closed, manual-movie schema).
+- CI: `.github/workflows/ci.yml` (compile + ruff + smoke). `ruff.toml` added. `.gitignore` fixed to allow `.github/*.yml`.
+- `requirements.txt` fully pinned; `lancedb`/`sentence-transformers` removed (Chroma + Gemini embeddings are the live path).
+- `.env.example`, `deploy/jarvis.service`, `deploy/RUNBOOK.md`, `migrations/` (canonical schema docs 001/002).
+- Shared Gemini client/retry in `core/gemini_client.py` (used by both brains). Movie DB extracted to `core/movie_repository.py`. `manual_movie_trigger` uses proper `get_parameters()` (Pydantic `args_schema` bug class eliminated). Hologram tool moved to `tools/ui/` (now registered). Empty `core/evolution.py` deleted.
+
+### Known remaining risks (accepted / future work)
+- Voice WebSocket (`/ws/voice`) is unauthenticated — out of scope this cycle; do not expose publicly.
+- `custom_skills/` tools default to `owner_role="ceo"` (was "all").
+- Receipt freshness window (2h) is enforced by Gemini-extracted time — a genuinely old receipt is correctly rejected (observed 2026-08-13: 13:49 receipt submitted ~16:42).
+- Vision quota is consumed before the Gemini call completes (failed analyses still count).
+
+---
 
 ## 🚨 Required Changes (2026-08-13)
 
@@ -71,8 +120,8 @@ Before finalizing ANY code change, enforce three-stage validation:
 - **Secretary flow:** `plugins/p_secretary.py` handles incoming DMs. Photos are downloaded to `workspace/temp_media/` and passed to `perception/media_receiver.py::process_incoming_image()`, which runs **both** the local face engine (`perception/face_engine.py`) **and** Gemini deep vision, then hands the brain (`interfaces/userbot/secretary_brain.py`) a context string containing `Local Face Analysis:` and `Gemini Vision Analysis:` — so the Secretary can answer questions about what is actually in the image.
 - **Deep vision** lives in `perception/vision_analyzer.py::analyze_image_with_gemini()` and is wired to both `media_receiver.py` (every inbound Secretary photo) and `tools/system/business_tools/payment_verifier.py` (owner_role `business_manager`, invoked via `publish_event` delegation).
 - **Business:** Secretary sells **Telegram VIP channel subscriptions (35,000 MMK)** — payment is verified, then `vip_invite_tool.py` (`generate_vip_invite_link`, role `business_manager`) issues a one-time invite link via the userbot API — and Bluetooth jammers (`jammer_order.py`). It can also send product photos via `send_product_image_tool.py` (`send_product_image`). VPN/Marzban sales were removed (see Task 3). Payment anti-fraud: `payment_verifier.py` extracts transaction_id/amount/recipient via Gemini vision, enforces amount ≥ `Config.VIP_SUBSCRIPTION_PRICE_MMK` (35000), 2-hour freshness, checks duplicate ledger in `memory/business_storage.py` (`workspace/business_ledger.db`).
-- **Roles:** SE Team (`se_manager`/`planner`/`coder`/`frontend_coder`/`qa_tester`/`deployer`) and `vpn_worker` have been removed. Remaining roles: `ceo`, `sysadmin`, `creator_manager`, `researcher`, `deep_researcher`, `content_writer`, `web_surfer`, `business_manager`, `secretary`. `delegate_task` enum: `["creator_manager", "sysadmin", "web_surfer"]`.
-- **Event delegation:** `core/message_broker.py` (SQLite `workspace/message_broker.db`) + `core/orchestrator.py` pick up PENDING events and spawn `JarvisAgent(role=target_agent)` with prompt from `core/prompts/<role>.md`.
+- **Roles:** Remaining roles: `ceo`, `sysadmin`, `researcher`, `deep_researcher`, `business_manager`, `secretary`. `delegate_task` enum: `["sysadmin", "researcher"]`. Creator Team / browser / SE Team / VPN worker have been removed.
+- **Event delegation:** `core/message_broker.py` (SQLite `workspace/message_broker.db` with claim/lease/retry) + `core/orchestrator.py` pick up PENDING events, claim them to IN_PROGRESS, and spawn `JarvisAgent(role=target_agent)` with prompt from `core/prompts/<role>.md` (nested prompts supported). Events are COMPLETED only after successful agent execution.
 - **Tools:** auto-discovered by `core/registry.py` walking `tools/`; role-gating via `owner_role` attribute and module path rules.
 
 ## Goals (user-approved)

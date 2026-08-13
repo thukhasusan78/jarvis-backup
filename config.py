@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from itertools import cycle
 import pytz
+from core.business_catalog import VIP_SUBSCRIPTION_PRICE_MMK as CATALOG_VIP_PRICE
 
 # .env ဖိုင်ထဲက အချက်အလက်တွေကို ဆွဲယူခြင်း
 load_dotenv()
@@ -51,7 +52,11 @@ class Config:
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
     TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "@thukhatech")
     TAVILY_KEY = os.getenv("TAVILY_KEY")
-    ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID", 0))
+    _allowed_raw = os.getenv("ALLOWED_USER_ID", "").strip()
+    try:
+        ALLOWED_USER_ID = int(_allowed_raw) if _allowed_raw else 0
+    except ValueError:
+        ALLOWED_USER_ID = 0
 
     # --- 💾 Memory Paths ---
     # Chat History သိမ်းမယ့် SQLite DB
@@ -84,27 +89,21 @@ class Config:
 
     # --- 💎 VIP Subscription Business ---
     VIP_CHANNEL_ID = int(os.getenv("VIP_CHANNEL_ID", 0))
-    VIP_SUBSCRIPTION_PRICE_MMK = 35000
+    VIP_SUBSCRIPTION_PRICE_MMK = CATALOG_VIP_PRICE
 
     # ==========================================
     # 🎬 MOVIE BOT CONFIGURATIONS
     # ==========================================
-    TMDB_API_KEY = os.getenv("TMDB_API_KEY") 
+    TMDB_API_KEY = os.getenv("TMDB_API_KEY")
     TAVILY_API_KEY = os.getenv("TAVILY_KEY")
 
-# Auto-Monitor မှ ၂၄ နာရီ စောင့်ကြည့်ရမည့် သူများ၏ Channel ID များ
-# ID: -1002861107636  =>  Name: နိုင်ငံခြားအက်ရှင်ဇာတ်ကားကောင်းများ
-# ID: -1002177243316  =>  Name: မြန်မာစာတန်းထိုးဇာတ်ကားများ (CH)
-# ID: -1003519309429  =>  Name: 𝗧𝗼𝗼𝗻𝗩𝗶𝗹𝗹𝗲
-# ID: -1002496408921  =>  Name: မြန်မာစာတန်းထိုးဇာတ်ကားစုံ
-# ID: -1003542479604  =>  Name: TZ Movies(Hollywood)
-# ID: -1003334073150  =>  Name: Rabit Movie 
-    MONITOR_CHANNELS = [-1002861107636, -1002177243316, -1003519309429, -1002496408921, -1003542479604, -1003334073150, -1003824267490] 
+    # Auto-Monitor မှ ၂၄ နာရီ စောင့်ကြည့်ရမည့် သူများ၏ Channel ID များ
+    MONITOR_CHANNELS = [-1002861107636, -1002177243316, -1003519309429, -1002496408921, -1003542479604, -1003334073150, -1003824267490]
 
     CHANNELS_CONFIG = {
         "THUKHA_MOVIES": {
-            "main_channel_id": "@thukhamovies",          
-            "storage_id": -1003548493405,                
+            "main_channel_id": "@thukhamovies",
+            "storage_id": -1003548493405,
             "invite_link": "https://t.me/+SvLAsuIFfx1kN2Vl",
             "cross_promo_buttons": [
                 [{"text": "📺 Series Channel", "url": "https://t.me/thukhaseries"}],
@@ -112,8 +111,8 @@ class Config:
             ]
         },
         "THUKHA_SERIES": {
-            "main_channel_id": "@thukhaseries",          
-            "storage_id": -1003564993052,                
+            "main_channel_id": "@thukhaseries",
+            "storage_id": -1003564993052,
             "invite_link": "https://t.me/+JwSYk3ntyZczYWI1",
             "cross_promo_buttons": [
                 [{"text": "🎬 Movies Channel", "url": "https://t.me/thukhamovies"}],
@@ -121,8 +120,8 @@ class Config:
             ]
         },
         "THUKHA_CARTOONS": {
-            "main_channel_id": "@thukhacartoons",        
-            "storage_id": -1003824661116,                
+            "main_channel_id": "@thukhacartoons",
+            "storage_id": -1003824661116,
             "invite_link": "https://t.me/+YiQ_pMMPq6ZjMDll",
             "cross_promo_buttons": [
                 [{"text": "🎬 Movies Channel", "url": "https://t.me/thukhamovies"}],
@@ -130,6 +129,20 @@ class Config:
             ]
         }
     }
+
+    @classmethod
+    def validate_required(cls) -> None:
+        """Fail closed on missing owner ACL / critical runtime settings."""
+        errors = []
+        if not cls.ALLOWED_USER_ID or cls.ALLOWED_USER_ID <= 0:
+            errors.append("ALLOWED_USER_ID must be set to a positive Telegram user id")
+        if not cls.TELEGRAM_TOKEN:
+            errors.append("TELEGRAM_TOKEN is required")
+        if not cls.API_KEYS:
+            errors.append("GEMINI_API_KEYS is required")
+        if errors:
+            raise RuntimeError("Config validation failed: " + "; ".join(errors))
+
 
 # Folder တွေ မရှိရင် အလိုအလျောက် ဆောက်ပေးမယ့် code
 os.makedirs("memory", exist_ok=True)

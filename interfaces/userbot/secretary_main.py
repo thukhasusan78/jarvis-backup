@@ -2,6 +2,8 @@ import os
 import logging
 import asyncio
 from pyrogram import Client
+from config import Config
+from interfaces.customer_messaging import customer_messaging
 
 logger = logging.getLogger("SECRETARY_MAIN")
 
@@ -34,6 +36,19 @@ async def start_secretary():
 
         await app.start()
         logger.info("✅ Userbot Master Session ONLINE. (Plugins Loaded successfully)")
+
+        if Config.VIP_CHANNEL_ID:
+            try:
+                chat = await customer_messaging.resolve_chat(
+                    Config.VIP_CHANNEL_ID
+                )
+                logger.info(
+                    "✅ VIP channel resolved by userbot: %s (%s)",
+                    getattr(chat, "title", "unknown"),
+                    getattr(chat, "id", Config.VIP_CHANNEL_ID),
+                )
+            except Exception as exc:
+                logger.error("❌ VIP channel preflight failed: %s", exc)
         
         # (မှတ်ချက် - Movie Queue Worker ကို နောက်တစ်ဆင့် p_movie_radar.py ရေးပြီးရင် ဒီနေရာမှာ လာတပ်ပါမယ်)
 

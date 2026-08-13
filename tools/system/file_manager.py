@@ -5,31 +5,36 @@ from typing import Dict, List
 from google.genai import types
 
 from tools.base import BaseTool
+from core.security import is_secret_path
 
 logger = logging.getLogger("JARVIS_FILE_MANAGER")
+
 
 class FileManagerTool(BaseTool):
     """
     Secure File System Manager (Sandbox Mode).
-    Allows Jarvis to read any project file, but strictly limits writing to specific folders.
+    Read is allowed inside the project except secrets; write is limited to sandbox dirs.
     """
     name = "manage_file"
-    description = "Read, write, or list files. STRICT SANDBOX RULES: You can read any file in the project. But you can ONLY write files to 'custom_skills', 'workspace', or 'memory' directories."
+    description = (
+        "Read, write, or list files. STRICT SANDBOX: cannot read .env/session/key files. "
+        "Write only to 'custom_skills', 'workspace', or 'memory'."
+    )
 
     def get_parameters(self) -> Dict[str, types.Schema]:
         return {
             "action": types.Schema(
-                type=types.Type.STRING, 
-                enum=["read", "write", "list"], 
-                description="Action to perform: 'read' (read file), 'write' (create/modify file), 'list' (list directory contents)."
+                type=types.Type.STRING,
+                enum=["read", "write", "list"],
+                description="Action to perform: 'read', 'write', or 'list'."
             ),
             "path": types.Schema(
-                type=types.Type.STRING, 
-                description="Relative path to the file or directory (e.g., 'core/agent.py' or 'custom_skills/my_tool.py')."
+                type=types.Type.STRING,
+                description="Relative path to the file or directory."
             ),
             "content": types.Schema(
-                type=types.Type.STRING, 
-                description="The text content to write into the file (Required ONLY for 'write' action)."
+                type=types.Type.STRING,
+                description="Text content for 'write' action."
             )
         }
 
@@ -41,28 +46,34 @@ class FileManagerTool(BaseTool):
         file_path_str = kwargs.get("path")
         content = kwargs.get("content", "")
 
-        # 🛑 THE FIX: path မပါလာရင် Crash မဖြစ်အောင် တားမယ့် Code
         if not file_path_str:
             return "❌ Error: 'path' parameter is required but was not provided."
 
         try:
-            # လုံခြုံရေး - လက်ရှိ Project Folder လမ်းကြောင်းကို ယူမည်
             base_dir = Path.cwd().resolve()
             target_path = (base_dir / file_path_str).resolve()
 
-            # 🛑 လုံခြုံရေး အဆင့် ၁: Project Folder အပြင်ဘက်ကို ထွက်ခွင့်မပြုပါ
             if not str(target_path).startswith(str(base_dir)):
                 return "🛑 Security Alert: Access denied. You are restricted to the project directory only."
 
-            # 🛑 လုံခြုံရေး အဆင့် ၂: Write Access ကို Sandbox Folder များတွင်သာ ခွင့်ပြုမည်
+            if is_secret_path(target_path, base_dir):
+                return "🛑 Security Alert: Access denied. Secret/credential files cannot be read, written, or listed."
+
             if action == "write":
                 allowed_dirs = ["custom_skills", "workspace", "memory"]
-                is_allowed = any(str(target_path).startswith(str((base_dir / d).resolve())) for d in allowed_dirs)
-                
+                is_allowed = any(
+                    str(target_path).startswith(str((base_dir / d).resolve()))
+                    for d in allowed_dirs
+                )
                 if not is_allowed:
-                    return f"🛑 Security Alert: Write access denied for '{file_path_str}'. To prevent system corruption, you are only allowed to write in: {', '.join(allowed_dirs)}."
+                    return (
+                        f"🛑 Security Alert: Write access denied for '{file_path_str}'. "
+                        f"Allowed write dirs: {', '.join(allowed_dirs)}."
+                    )
+                # Also block writing secrets into allowed dirs
+                if is_secret_path(target_path.name) or target_path.name.startswith(".env"):
+                    return "🛑 Security Alert: Cannot write secret/credential filenames."
 
-            # --- လုပ်ဆောင်ချက်များ (Actions) ---
             if action == "read":
                 if not target_path.exists() or not target_path.is_file():
                     return f"Error: File '{file_path_str}' does not exist."
@@ -70,21 +81,27 @@ class FileManagerTool(BaseTool):
                     file_content = f.read()
                 return f"📄 Contents of {file_path_str}:\n\n{file_content}"
 
-            elif action == "write":
-                # Folder မရှိသေးပါက အလိုအလျောက် တည်ဆောက်ပေးမည်
+            if action == "write":
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(target_path, "w", encoding="utf-8") as f:
                     f.write(content)
-                return f"✅ SUCCESS: File '{file_path_str}' has been written. CRITICAL INSTRUCTION: You MUST NOT edit this file again. STOP using tools immediately and send your final text report to the user."
+                return (
+                    f"✅ SUCCESS: File '{file_path_str}' has been written. "
+                    "CRITICAL INSTRUCTION: You MUST NOT edit this file again. "
+                    "STOP using tools immediately and send your final text report to the user."
+                )
 
-            elif action == "list":
+            if action == "list":
                 if not target_path.exists() or not target_path.is_dir():
                     return f"Error: Directory '{file_path_str}' does not exist."
-                items = os.listdir(target_path)
+                items = []
+                for name in os.listdir(target_path):
+                    if is_secret_path(target_path / name, base_dir):
+                        continue
+                    items.append(name)
                 return f"📂 Directory listing for {file_path_str}:\n" + "\n".join(items)
 
-            else:
-                return f"Error: Unknown action '{action}'."
+            return f"Error: Unknown action '{action}'."
 
         except Exception as e:
             logger.error(f"FileManager Error: {e}")

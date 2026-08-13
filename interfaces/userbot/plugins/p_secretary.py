@@ -18,11 +18,9 @@ except ValueError:
 human_active_chats = {}
 SILENCE_TIMEOUT = 600
 
-# --- 📸 Last Uploaded Image Tracker ---
-# Customer ပို့တဲ့ နောက်ဆုံးပုံရဲ့ File Path ကို မှတ်ထားမည် (Text-only follow-up တွေမှာပါ payment verify လုပ်နိုင်စေရန်)
-# Format: {chat_id: (file_path, uploaded_timestamp)}
+# --- 📸 Last Uploaded Image Tracker (in-memory cache + SQL persistence) ---
 last_image_uploads = {}
-IMAGE_VALIDITY = 86400  # ၂၄ နာရီ (temp_media auto-delete နဲ့ ကိုက်ညီစေရန်)
+IMAGE_VALIDITY = 86400  # ၂၄ နာရီ
 
 # --- 💔 VIP Ghosting Protocol Variables ---
 vip_message_timestamps = []
@@ -30,11 +28,35 @@ VIP_MUTE_UNTIL = 0
 
 brain = SecretaryBrain()
 
+
+def _load_vip_mute():
+    global VIP_MUTE_UNTIL
+    try:
+        VIP_MUTE_UNTIL = sql_storage.get_vip_mute_until(VIP_CHAT_ID) if VIP_CHAT_ID else 0.0
+    except Exception:
+        VIP_MUTE_UNTIL = 0.0
+
+
+def _persist_vip_mute(until: float):
+    global VIP_MUTE_UNTIL
+    VIP_MUTE_UNTIL = until
+    if VIP_CHAT_ID:
+        try:
+            sql_storage.set_vip_mute_until(VIP_CHAT_ID, until)
+        except Exception as e:
+            logger.error(f"Failed to persist VIP mute: {e}")
+
+
+_load_vip_mute()
+
+
 @Client.on_message(filters.me & filters.private, group=2)
 async def track_human_activity(client, message):
     """ဆရာ ကိုယ်တိုင် စာဝင်ရိုက်လိုက်လျှင် မှတ်ထားမည်"""
     chat_id = message.chat.id
-    human_active_chats[chat_id] = time.time()
+    now = time.time()
+    human_active_chats[chat_id] = now
+    await asyncio.to_thread(sql_storage.set_human_active, chat_id, now)
     logger.info(f"👨‍💼 Human (Sir) replied to {chat_id}. Pausing Secretary for 10 mins.")
     
     # --- 🛑 THE FIX: Personal Chats & Small Talk Filter ---
@@ -73,47 +95,59 @@ async def process_secretary_reply(client, chat_id, user_name, user_text, is_bot=
         logger.info(f"🤖 Muted: Ignoring message from BOT ({user_name}) to prevent AI Loop.")
         return
 
-    last_active = human_active_chats.get(chat_id, 0)
+    last_active = human_active_chats.get(chat_id)
+    if last_active is None:
+        last_active = await asyncio.to_thread(sql_storage.get_human_active_until, chat_id)
+        if last_active:
+            human_active_chats[chat_id] = last_active
+    last_active = last_active or 0
     if time.time() - last_active < SILENCE_TIMEOUT:
         logger.info(f"🤫 Muted: Ignoring {user_name} because Sir replied recently.")
-        return 
+        return
 
     logger.info(f"👩‍💼 Secretary taking over DM from {user_name}...")
     await client.send_chat_action(chat_id, ChatAction.TYPING)
 
     if chat_id == VIP_CHAT_ID:
         global VIP_MUTE_UNTIL, vip_message_timestamps
-        
+        _load_vip_mute()
+
         # (၁) လက်ရှိအချိန်က Mute လုပ်ထားတဲ့ (၁ နာရီ) အတွင်းမှာဆိုရင် လုံးဝ စာမပြန်ဘဲ ငြိမ်နေမည်
         if time.time() < VIP_MUTE_UNTIL:
             logger.info("🤫 [VIP MUTED] ကောင်မလေး စိတ်ဆိုးနေသဖြင့် Jarvis ဝင်မဖြေဘဲ ငြိမ်နေပါသည်။")
             return
-            
+
         # (၂) နောက်ဆုံး ၁ မိနစ် (စက္ကန့် ၆၀) အတွင်း ပို့ထားတဲ့ စာတွေရဲ့ အချိန်ကိုပဲ မှတ်ထားမည်
         current_time = time.time()
+        vip_ts = await asyncio.to_thread(sql_storage.get_vip_timestamps, VIP_CHAT_ID)
+        vip_message_timestamps = list(vip_ts) if vip_ts else vip_message_timestamps
         vip_message_timestamps.append(current_time)
         vip_message_timestamps = [t for t in vip_message_timestamps if current_time - t <= 60]
-        
+        await asyncio.to_thread(sql_storage.set_vip_timestamps, VIP_CHAT_ID, vip_message_timestamps)
+
         # (၃) ၁ မိနစ်အတွင်း စာ ၃ ကြောင်း ပြည့်သွားရင် ၁ နာရီ (၃၆၀၀ စက္ကန့်) Mute ချမည်
         if len(vip_message_timestamps) >= 3:
-            VIP_MUTE_UNTIL = current_time + 3600
+            _persist_vip_mute(current_time + 3600)
             logger.warning("🚨 [GHOSTING PROTOCOL ACTIVATED] ၁ မိနစ်အတွင်း စာ ၃ ကြောင်း ဆက်တိုက်ဝင်လာသဖြင့် ၁ နာရီတိတိ Mute ချလိုက်ပါပြီ။")
             return
 
         user_text = f"[SYSTEM NOTE: VIP - GIRLFRIEND] {user_text}"
 
     # --- 📸 Persist last image path across turns ---
-    # ပုံပို့ထားပြီးနောက် Text-only follow-up (ဥပမာ "လွှဲပြီးပါပြီ") ဝင်လာရင်
-    # Telegram history ထဲမှာ ပုံက "[Media/Sticker/Voice]" ပဲပေါ်တာမို့ Path ပါမသွားဘူး။
-    # ဒါကြောင့် နောက်ဆုံးပုံရဲ့ Path ကို ဒီမှာ SYSTEM NOTE အဖြစ် ပြန်ထည့်ပေးမည်။
     if "[SYSTEM: User uploaded an image" not in user_text:
         last_img = last_image_uploads.get(chat_id)
+        if not last_img:
+            persisted = await asyncio.to_thread(sql_storage.get_last_image, chat_id)
+            if persisted and persisted[0]:
+                last_img = persisted
+                last_image_uploads[chat_id] = persisted
         if last_img:
             img_path, img_ts = last_img
             if time.time() - img_ts < IMAGE_VALIDITY:
                 user_text += f"\n[SYSTEM NOTE: This customer's most recent uploaded image is still available at File Path: '{img_path}'. Use this path if you need to publish a payment-verification event.]"
             else:
                 last_image_uploads.pop(chat_id, None)
+                await asyncio.to_thread(sql_storage.clear_last_image, chat_id)
 
     # Chat History (၁၀ ကြောင်း) ဆွဲထုတ်ခြင်း
     real_history = []
@@ -157,7 +191,8 @@ async def handle_incoming_messages(client, message):
             logger.info(f"📸 Downloading photo from {user_name}...")
             await message.download(file_name=file_path)
             caption = message.caption or message.text or ""
-            last_image_uploads[chat_id] = (file_path, time.time())  # 📸 နောက်ထပ် text-only turn တွေအတွက် Path မှတ်ထားခြင်း
+            last_image_uploads[chat_id] = (file_path, time.time())
+            await asyncio.to_thread(sql_storage.set_last_image, chat_id, file_path, time.time())
             user_text = await process_incoming_image(file_path, caption, chat_id=chat_id)
             
         elif message.text:
@@ -175,6 +210,7 @@ async def handle_incoming_messages(client, message):
                 await asyncio.to_thread(sql_storage.clear_history, chat_id)
                 await asyncio.to_thread(sql_storage.set_vision_timestamps, chat_id, [])
                 last_image_uploads.pop(chat_id, None)
+                await asyncio.to_thread(sql_storage.clear_last_image, chat_id)
                 await client.send_message(
                     chat_id,
                     "🧹 စကားပြောခင်း မှတ်တမ်းအားလုံး ရှင်းလင်းပြီးပါပြီ။ အစကနေ ပြန်လည် စတင်နိုင်ပါပြီခင်ဗျာ။"

@@ -30,4 +30,6 @@ memory/known_faces/
 custom_skills/
 workspace/
 *.yml
+!.github/
+!.github/**/*.yml
 *.deb

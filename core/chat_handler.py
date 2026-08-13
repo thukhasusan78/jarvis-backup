@@ -16,8 +16,21 @@ async def process_user_message(user_id: int, user_text: str, status_callback=Non
 
     try:
         import os
-        # User က အလုပ်အသစ်ခိုင်းတိုင်း The Square အဟောင်းကို ရှင်းလင်းမည်
-        if os.path.exists("workspace/square.md"): os.remove("workspace/square.md")
+        # Bounded Square feed — append a session marker instead of wiping concurrent agent context
+        square_path = os.path.join("workspace", "square.md")
+        os.makedirs("workspace", exist_ok=True)
+        with open(square_path, "a", encoding="utf-8") as f:
+            f.write(f"\n\n=== NEW OWNER REQUEST (task={task_id or 'n/a'}) ===\n{user_text[:500]}\n")
+        # Retain last ~32KB only
+        try:
+            with open(square_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            if len(content) > 32000:
+                with open(square_path, "w", encoding="utf-8") as f:
+                    f.write(content[-32000:])
+        except Exception:
+            pass
+
         # 1. Profile (Long-term) + History (Short-term) ကို ဆွဲထုတ်မယ်
         profile_data = memory_controller.get_all_user_facts(user_id)
         short_term_history = memory_controller.get_recent_chat(user_id, limit=10)
@@ -25,9 +38,9 @@ async def process_user_message(user_id: int, user_text: str, status_callback=Non
 
         # 2. Agent ကို မေးမယ် (task_id ကို ပါ တစ်ခါတည်း ထည့်ပို့ပေးလိုက်မည်)
         response = await agent.chat(
-            user_input=user_text, 
-            user_id=user_id, 
-            chat_history=short_term_history, 
+            user_input=user_text,
+            user_id=user_id,
+            chat_history=short_term_history,
             context_memory=full_context,
             send_status=status_callback,
             task_id=task_id
@@ -40,9 +53,9 @@ async def process_user_message(user_id: int, user_text: str, status_callback=Non
         # --- THE FIRE AND FORGET MEMORY ENGINE TRIGGER ---
         asyncio.create_task(extract_and_store_memory(user_id, user_text, response))
         # -------------------------------------------------
-        
+
         return response
-        
+
     except Exception as e:
         logger.error(f"Chat Handler Error: {e}")
         return f"System Error: {str(e)}"

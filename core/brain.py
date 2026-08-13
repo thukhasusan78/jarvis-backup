@@ -6,6 +6,7 @@ from google.genai import types
 from config import Config
 from core.registry import tool_registry
 from core.prompts.context_manager import context_manager
+from core.gemini_client import build_client, is_quota_error
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -60,26 +61,7 @@ class JarvisBrain:
 
     def _get_client(self):
         """Round-Robin Key Rotation or Orbit Gateway"""
-        
-        # 🔥 ORBIT PROVIDER LOGIC: Agent မှာ [PROVIDER: ORBIT] Tag ပါလာရင် ဒီလမ်းကြောင်းက သွားမယ်
-        if getattr(self, "use_orbit", False) and hasattr(Config, "ORBIT_API_KEY") and Config.ORBIT_API_KEY:
-            logger.info(f"Using ORBIT API Key for {self.role.upper()} ({self.model_name})")
-            return genai.Client(
-                api_key=Config.ORBIT_API_KEY, 
-                http_options={
-                    'base_url': Config.ORBIT_BASE_URL,
-                    'api_version': 'v1beta',
-                    'headers': {
-                        'Authorization': f'Bearer {Config.ORBIT_API_KEY}',
-                        'X-API-Key': Config.ORBIT_API_KEY
-                    }
-                }
-            )
-            
-        # 🌐 NORMAL LOGIC: သာမန် Agent တွေဆိုရင် မူလ .env ထဲက Google Key တွေကို လှည့်သုံးမယ်
-        api_key = Config.get_next_api_key()
-        logger.info(f"Using Standard API Key ending in: ...{api_key[-4:]}")
-        return genai.Client(api_key=api_key)
+        return build_client(use_orbit=getattr(self, "use_orbit", False))
 
     def think(self, user_input, chat_history=[], context_memory=""):
         """
@@ -126,7 +108,7 @@ class JarvisBrain:
                 logger.error(f"API Error with key attempt {attempt+1}: {e}")
                 
                 # 429 means Rate Limit - Rotate Key immediately
-                if "429" in str(e) or "quota" in str(e).lower():
+                if is_quota_error(e):
                     logger.warning("Rate Limit hit! Rotating to next API Key...")
                     attempt += 1
                     time.sleep(1) # ခဏစောင့်ပြီး နောက် Key ပြောင်း
@@ -193,7 +175,9 @@ class JarvisBrain:
                             logger.info(f"⚙️ Streaming Brain executing tool: {tool_name}")
                             
                             # Registry မှ Tool ကို အမှန်တကယ် Run မည်
-                            tool_result = await tool_registry.execute_tool(tool_name, **tool_args)
+                            tool_result = await tool_registry.execute_tool(
+                                tool_name, caller_role=self.role, **tool_args
+                            )
                             
                             # Tool အဖြေကို AI ဆီ ပြန်ပို့ပြီး အသံဖြင့် ပြန်ဖြေခိုင်းမည့် အပိုင်းကို 
                             # နောက်ပိုင်းတွင် ထပ်မံ အဆင့်မြှင့်တင်နိုင်ပါသည်။

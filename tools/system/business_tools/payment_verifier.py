@@ -4,33 +4,63 @@ import json
 from tools.base import BaseTool
 from google.genai import types
 from perception.vision_analyzer import analyze_image_with_gemini
-from memory.business_storage import is_transaction_exists, record_transaction
+from memory.business_storage import (
+    is_transaction_exists,
+    record_transaction,
+    get_transaction,
+    STATUS_VERIFIED,
+    STATUS_FULFILLED,
+)
+from core.business_catalog import VIP_SUBSCRIPTION_PRICE_MMK
 
 logger = logging.getLogger("PAYMENT_VERIFIER")
 
+
 class PaymentVerifierTool(BaseTool):
     name = "verify_payment"
-    description = "CRITICAL TOOL: Analyzes a payment receipt image, extracts the Transaction ID, and checks the Business Ledger to prevent fake or duplicate receipts."
-    owner_role = "business_manager" # Business Manager သာလျှင် သုံးခွင့်ရှိသည်
+    description = (
+        "CRITICAL TOOL: Analyzes a payment receipt image, extracts the Transaction ID, "
+        "and checks the Business Ledger. On success records status=VERIFIED (not yet FULFILLED). "
+        "Pass product='vip' or product='jammer' and the correct min_amount."
+    )
+    owner_role = "business_manager"
 
     def get_parameters(self):
         return {
             "image_path": types.Schema(type=types.Type.STRING, description="The file path of the receipt image."),
             "customer_name": types.Schema(type=types.Type.STRING, description="The name of the customer."),
-            "min_amount": types.Schema(type=types.Type.INTEGER, description="Minimum acceptable paid amount in MMK. Default 35000 (VIP subscription price). Pass 0 to skip the amount check (e.g. for Jammer COD deposit receipts).")
+            "min_amount": types.Schema(
+                type=types.Type.INTEGER,
+                description=f"Minimum acceptable paid amount in MMK. Default {VIP_SUBSCRIPTION_PRICE_MMK} (VIP). "
+                            "For jammer prepaid pass full price; for Mandalay deposit pass 10000; 0 skips amount check.",
+            ),
+            "product": types.Schema(
+                type=types.Type.STRING,
+                description="Product being paid for: 'vip' or 'jammer'. Default 'vip'.",
+            ),
         }
 
     def get_required(self):
-        return ["image_path", "customer_name"]
+        return ["image_path"]
 
-    async def execute(self, image_path: str, customer_name: str, min_amount: int = 35000) -> str:
-        logger.info(f"🔍 [ANTI-FRAUD] Verifying payment receipt for {customer_name}...")
-        
+    async def execute(
+        self,
+        image_path: str,
+        customer_name: str = "Telegram Customer",
+        min_amount: int = VIP_SUBSCRIPTION_PRICE_MMK,
+        product: str = "vip",
+    ) -> str:
+        logger.info(f"🔍 [ANTI-FRAUD] Verifying {product} payment receipt for {customer_name}...")
+
         import datetime
         from config import Config
+
         current_time = datetime.datetime.now(Config.TIMEZONE)
-        # AI ကို ၂ နာရီ တွက်ချက်ရ လွယ်အောင် အချိန်အတိအကျ (နာရီ၊ မိနစ်) ကိုပါ ထည့်ပေးလိုက်မည်
         time_str = current_time.strftime("%Y-%m-%d %I:%M %p")
+        product = (product or "vip").strip().lower()
+        if product not in {"vip", "jammer"}:
+            logger.warning("Unknown payment product %r; defaulting to vip", product)
+            product = "vip"
 
         prompt = f"""
         The current date and time is {time_str}.
@@ -46,52 +76,80 @@ class PaymentVerifierTool(BaseTool):
         {{"transaction_id": "1234567890", "amount": "5000", "recipient_name": "Thu Kha Su San", "is_within_2_hours": true}}
         If you cannot find a valid transaction ID, reply with {{"error": "No ID found"}}.
         """
-        
+
         try:
-            # မျက်စိဖြင့် စစ်ဆေးခြင်း
             ai_response = await analyze_image_with_gemini(image_path, prompt)
-            
-            # JSON Data အဖြစ် သန့်စင်ခြင်း
-            json_str = re.search(r'\{.*\}', ai_response, re.DOTALL)
+
+            # Non-greedy JSON extraction
+            json_str = re.search(r'\{.*?\}', ai_response, re.DOTALL)
             if not json_str:
                 return f"❌ Verification Failed: ပုံဝါးနေသဖြင့် ဖတ်၍မရပါ။ AI output: {ai_response}"
-                
+
             data = json.loads(json_str.group())
-            
+
             if "error" in data:
                 return "❌ Verification Failed: ပြေစာပေါ်တွင် လုပ်ငန်းစဉ်အမှတ် (Transaction ID) ရှာမတွေ့ပါ။ ပြေစာအစစ် မဟုတ်နိုင်ပါ။"
-                
+
             txn_id = str(data.get("transaction_id", "")).strip()
             amount = str(data.get("amount", "")).strip()
             recipient_name = str(data.get("recipient_name", "")).strip().lower()
             is_within_2_hours = data.get("is_within_2_hours", True)
 
-            # --- 💰 ငွေပမာဏ လုံလောက်မှု စစ်ဆေးခြင်း (default: VIP 35,000 MMK) ---
-            amount_digits = re.sub(r'\D', '', amount)
+            amount_digits = re.sub(r"\D", "", amount)
             paid_amount = int(amount_digits) if amount_digits else 0
             if min_amount > 0 and paid_amount < min_amount:
-                return f"❌ Verification Failed: ငွေပမာဏ မလုံလောက်ပါ။ အနည်းဆုံး {min_amount:,} MMK ဖြစ်ရပါမည်။ (လွှဲထားငွေ: {paid_amount:,} MMK)"
+                return (
+                    f"❌ Verification Failed: ငွေပမာဏ မလုံလောက်ပါ။ "
+                    f"အနည်းဆုံး {min_amount:,} MMK ဖြစ်ရပါမည်။ (လွှဲထားငွေ: {paid_amount:,} MMK)"
+                )
 
             if len(txn_id) < 6:
                 return f"❌ Verification Failed: လုပ်ငန်းစဉ်အမှတ် ({txn_id}) မှာ တိုလွန်းနေသဖြင့် အတုဖြစ်နိုင်ပါသည်။"
 
-            # --- 🕒 အချိန် (၂) နာရီအတွင်း ဟုတ်/မဟုတ် စစ်ဆေးခြင်း ---
             if not is_within_2_hours:
                 return "❌ Verification Failed: ငွေလွှဲပြေစာမှာ ၂ နာရီထက် ကျော်လွန်နေပါသည်။ လတ်တလော လွှဲထားသော ပြေစာကိုသာ လက်ခံပါမည်။"
 
-            # --- 👤 ငွေလက်ခံသူ အမည် စစ်ဆေးခြင်း ---
-            # KPay တွင် 'U Thu Kha Su San' ဟု ပေါ်တတ်သဖြင့် အမည်ပါဝင်မှု (Contains) ကိုသာ စစ်ဆေးမည်
             if "thu kha su san" not in recipient_name and "သုခစုစံ" not in recipient_name:
-                return f"❌ Verification Failed: ငွေလက်ခံသူအမည် မှားယွင်းနေပါသည်။ (လက်ခံသူ: {recipient_name}) ဆရာ Thu Kha Su San ထံသို့ လွှဲထားသော ပြေစာသာ ဖြစ်ရပါမည်။"
+                return (
+                    f"❌ Verification Failed: ငွေလက်ခံသူအမည် မှားယွင်းနေပါသည်။ "
+                    f"(လက်ခံသူ: {recipient_name}) ဆရာ Thu Kha Su San ထံသို့ လွှဲထားသော ပြေစာသာ ဖြစ်ရပါမည်။"
+                )
 
-            # ၂။ Database ထဲတွင် သွားရောက်တိုက်စစ်ခြင်း (The Iron Logic)
-            if is_transaction_exists(txn_id):
-                return f"🚫 [FRAUD ALERT]: လုပ်ငန်းစဉ်အမှတ် {txn_id} သည် အရင်က သုံးပြီးသား ပြေစာအဟောင်း ဖြစ်နေပါသည်။ ချက်ချင်း ငြင်းပယ်ပြီး Customer ထံသို့ အသိပေးပါ။ (DO NOT generate an invite link!)"
-                
-            # ၃။ အသစ်ဖြစ်နေပါက Ledger ထဲတွင် မှတ်တမ်းတင်ထားမည်
-            record_transaction(txn_id, amount, customer_name, "VERIFIED")
-            
-            return f"✅ SUCCESS: ပြေစာအမှတ် {txn_id} ({amount} MMK) မှာ အသစ်ဖြစ်ပြီး မှန်ကန်ပါသည်။ VIP channel invite link ထုတ်ပေးနိုင်ပါသည်။"
+            existing = get_transaction(txn_id)
+            if existing:
+                status = existing.get("status")
+                if status == STATUS_FULFILLED:
+                    return (
+                        f"🚫 [FRAUD ALERT]: လုပ်ငန်းစဉ်အမှတ် {txn_id} သည် အရင်က သုံးပြီးသား ပြေစာအဟောင်း ဖြစ်နေပါသည်။ "
+                        "ချက်ချင်း ငြင်းပယ်ပြီး Customer ထံသို့ အသိပေးပါ။ (DO NOT generate an invite link!)"
+                    )
+                if status == STATUS_VERIFIED:
+                    # Allow re-fulfillment after a previous verify that never fulfilled
+                    return (
+                        f"✅ SUCCESS: ပြေစာအမှတ် {txn_id} ({amount} MMK) သည် VERIFIED ဖြစ်ပြီးသား — "
+                        f"FULFILLMENT ကို ဆက်လုပ်နိုင်ပါသည်။ product={product} txn_id={txn_id}"
+                    )
+                return (
+                    f"🚫 [FRAUD ALERT]: လုပ်ငန်းစဉ်အမှတ် {txn_id} သည် status={status} ဖြစ်နေပါသည်။ ငြင်းပယ်ပါ။"
+                )
+
+            inserted = record_transaction(txn_id, amount, customer_name, STATUS_VERIFIED, product=product)
+            if not inserted:
+                # Race: another worker inserted between get and insert
+                return (
+                    f"🚫 [FRAUD ALERT]: လုပ်ငန်းစဉ်အမှတ် {txn_id} သည် အရင်က သုံးပြီးသား ပြေစာအဟောင်း ဖြစ်နေပါသည်။ "
+                    "ချက်ချင်း ငြင်းပယ်ပြီး Customer ထံသို့ အသိပေးပါ။"
+                )
+
+            next_step = (
+                "VIP channel invite link ထုတ်ပေးနိုင်ပါသည်။"
+                if product == "vip"
+                else "Jammer order ကို record_jammer_order ဖြင့် ဆက်မှတ်နိုင်ပါသည်။"
+            )
+            return (
+                f"✅ SUCCESS: ပြေစာအမှတ် {txn_id} ({amount} MMK) မှာ အသစ်ဖြစ်ပြီး မှန်ကန်ပါသည် (status=VERIFIED). "
+                f"product={product} txn_id={txn_id}. {next_step}"
+            )
 
         except Exception as e:
             logger.error(f"Payment Verifier Error: {e}")

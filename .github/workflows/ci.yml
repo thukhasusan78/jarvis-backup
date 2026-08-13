@@ -1,0 +1,34 @@
+name: Jarvis CI
+
+on:
+  push:
+    branches: [main, new-updates, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest
+          # Install lightweight subset for offline tests (skip face_recognition / heavy ML)
+          pip install fastapi uvicorn python-dotenv google-genai python-telegram-bot \
+            tavily-python beautifulsoup4 aiofiles httpx html2text requests paramiko \
+            tenacity colorama pytz psutil apscheduler sqlalchemy chromadb pyrogram tgcrypto \
+            edge-tts || true
+      - name: Ruff lint (selected packages)
+        run: ruff check core tools memory interfaces/telegram_bot.py interfaces/customer_messaging.py config.py main.py --select E,F,W --ignore E501 || true
+      - name: Compile
+        run: python -m compileall core interfaces tools memory perception tasks main.py config.py -q
+      - name: Smoke tests
+        env:
+          ALLOWED_USER_ID: "12345"
+          TELEGRAM_TOKEN: "test-token"
+          GEMINI_API_KEYS: "dummy-key"
+        run: python tests/smoke_tests.py

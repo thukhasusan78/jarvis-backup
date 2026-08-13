@@ -1,11 +1,12 @@
 import logging
 import os
 import asyncio
-from google import genai
 from google.genai import types
 from config import Config
 from core.registry import tool_registry
 from memory.memory_controller import memory_controller
+
+from core.gemini_client import build_client, is_quota_error
 
 logger = logging.getLogger("SECRETARY_BRAIN")
 
@@ -31,6 +32,9 @@ class SecretaryBrain:
         self.tools_config = [
             types.Tool(function_declarations=tool_registry.get_declarations_for_role("secretary"))
         ]
+
+    def _get_client(self):
+        return build_client(use_orbit=False)
 
     async def reply(self, chat_id: int, user_name: str, text: str, chat_history_text: str) -> str:
         """Async Background Delegation ပါဝင်သော Chat System"""
@@ -58,8 +62,7 @@ class SecretaryBrain:
         while attempt < max_retries:
             try:
                 # Request တစ်ခေါက်လာတိုင်း Key အသစ်တစ်ချောင်းကို အလှည့်ကျ ဆွဲယူမည်
-                api_key = Config.get_next_api_key()
-                client = genai.Client(api_key=api_key)
+                client = self._get_client()
                 
                 # 🔄 MULTI-STEP TOOL LOOP: Tool ရလဒ်တွေကို Model ဆီ ပြန်ပေးပြီး ဆက်လုပ်စေမည်
                 # (ဥပမာ - ပုံ ၂ ပုံ ဆက်တိုက်ပို့ခြင်း)။ Infinite Loop ကာကွယ်ရန် အများဆုံး ၃ ရှော့သာ ခွင့်ပြုမည်။
@@ -86,9 +89,28 @@ class SecretaryBrain:
                     for fc in response.function_calls:
                         tool_name = fc.name
                         tool_args = dict(fc.args) if fc.args else {}
+
+                        # Business events must never ask the customer for a name we
+                        # already have from Telegram. Models can omit optional tool
+                        # arguments, so inject deterministic request context here.
+                        if tool_name == "publish_event":
+                            event_type = str(tool_args.get("event_type", ""))
+                            if event_type in {
+                                "VERIFY_AND_FULFILL_SUBSCRIPTION",
+                                "VERIFY_AND_FULFILL_JAMMER",
+                                "RECORD_JAMMER_ORDER",
+                            }:
+                                tool_args.setdefault("chat_id", chat_id)
+                                tool_args.setdefault(
+                                    "customer_name",
+                                    user_name or f"Telegram Customer {chat_id}",
+                                )
+
                         logger.info(f"⚙️ Secretary triggering tool: {tool_name} with args: {tool_args}")
 
-                        tool_result = await tool_registry.execute_tool(tool_name, **tool_args)
+                        tool_result = await tool_registry.execute_tool(
+                            tool_name, caller_role="secretary", **tool_args
+                        )
                         tool_results_text += f"[Tool '{tool_name}' Result]: {tool_result}\n"
 
                     # ရလဒ်များကို ပေါင်းထည့်ပြီး နောက်တစ်ချက် ဆက်တွေးခိုင်းမည်
@@ -108,7 +130,7 @@ class SecretaryBrain:
             except Exception as e:
                 logger.error(f"❌ Secretary API Error (Attempt {attempt+1}): {str(e)}")
                 # 429 ဆိုသည်မှာ Quota ပြည့်သွားခြင်းဖြစ်သည်။ ချက်ချင်း နောက် Key ကို ပြောင်းမည်။
-                if "429" in str(e) or "quota" in str(e).lower():
+                if is_quota_error(e):
                     logger.warning("⚠️ Rate Limit hit in Secretary! Rotating to next API Key...")
                     attempt += 1
                     await asyncio.sleep(1) 

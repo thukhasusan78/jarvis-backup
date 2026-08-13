@@ -1,0 +1,14 @@
+[Unit]
+Description=Jarvis AI Agent
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/jarvis-backup
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/root/jarvis-backup/venv/bin/python /root/jarvis-backup/main.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -27,20 +27,24 @@ async def lifespan(app: FastAPI):
     logger.info(f"🔥 System Ignited: {Config.BOT_NAME} v{Config.VERSION}")
     logger.info("📡 Connecting to Neural Network (Gemini 3)...")
 
+    # Fail closed on missing owner ACL / critical secrets
+    Config.validate_required()
+
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
     scheduler.start()
-    
+
     asyncio.create_task(run_telegram_bot())
     asyncio.create_task(start_orchestrator())
     asyncio.create_task(start_secretary())
-    
-    yield 
-    
+
+    yield
+
     scheduler.shutdown()
     logger.info("🛑 System Shutdown Initiated...")
     logger.info("💤 Jarvis is going to sleep.")
+
 
 # --- 🌐 FASTAPI APP ---
 app = FastAPI(
@@ -49,7 +53,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 🎙️ Voice Streaming Engine သစ်ကို ချိတ်ဆက်ခြင်း
+# 🎙️ Voice Streaming Engine (out of scope for hardening auth this cycle)
 app.include_router(voice_router)
 
 # 👈 Web UI အတွက် Folder များကို Server တွင် ချိတ်ဆက်ခြင်း
@@ -58,10 +62,21 @@ os.makedirs(os.path.join(web_dir, "static"), exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=os.path.join(web_dir, "static")), name="static")
 
+
 @app.get("/")
 async def root():
     """Main Web Interface ကို ဖွင့်ပေးမည့် Endpoint"""
     return FileResponse(os.path.join(web_dir, "index.html"))
+
+
+@app.get("/health")
+async def health():
+    """Lightweight health probe for watchdog / systemd."""
+    return {
+        "status": "ok",
+        "bot": Config.BOT_NAME,
+        "version": Config.VERSION,
+    }
 
 
 

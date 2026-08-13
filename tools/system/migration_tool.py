@@ -1,18 +1,26 @@
 import os
 import paramiko
 import logging
+from pathlib import Path
 from typing import Dict, List
 from google.genai import types
 from tools.base import BaseTool
+from core.security import is_secret_path
 
 logger = logging.getLogger("JARVIS_MIGRATION")
 
+KNOWN_HOSTS = os.path.expanduser("~/.ssh/known_hosts")
+
+
 class MigrationTool(BaseTool):
     """
-    Handles the heavy lifting of Server Migration: Zipping Memory and SFTP File Transfer.
+    Zips non-secret project data and transfers via SFTP with host-key verification.
     """
     name = "manage_migration"
-    description = "Zip the entire 'memory' folder (brain/databases) and securely transfer it to a remote server via SFTP."
+    description = (
+        "Zip memory/prompts/skills (NEVER .env or sessions) and transfer via SFTP. "
+        "Requires known_hosts entry for the remote host."
+    )
     owner_role = "sysadmin"
 
     def get_parameters(self) -> Dict[str, types.Schema]:
@@ -20,19 +28,19 @@ class MigrationTool(BaseTool):
             "action": types.Schema(
                 type=types.Type.STRING,
                 enum=["zip_memory", "sftp_upload"],
-                description="'zip_memory' compresses the memory folder. 'sftp_upload' transfers a file to the remote server."
+                description="'zip_memory' compresses safe folders. 'sftp_upload' transfers a file."
             ),
             "local_file": types.Schema(
-                type=types.Type.STRING, 
-                description="Path to local file (e.g., 'workspace/memory_backup.zip'). Required for upload."
+                type=types.Type.STRING,
+                description="Path to local file (e.g., 'workspace/jarvis_migration_data.zip')."
             ),
             "remote_path": types.Schema(
-                type=types.Type.STRING, 
-                description="Destination path on remote server (e.g., '/root/memory_backup.zip'). Required for upload."
+                type=types.Type.STRING,
+                description="Destination path on remote server."
             ),
             "host": types.Schema(type=types.Type.STRING, description="Remote Server IP"),
             "username": types.Schema(type=types.Type.STRING, description="SSH Username"),
-            "password": types.Schema(type=types.Type.STRING, description="SSH Password")
+            "password": types.Schema(type=types.Type.STRING, description="SSH Password"),
         }
 
     def get_required(self) -> List[str]:
@@ -45,28 +53,33 @@ class MigrationTool(BaseTool):
             try:
                 logger.info("📦 Zipping Important Files for Migration...")
                 import zipfile
-                
+
                 os.makedirs("workspace", exist_ok=True)
                 zip_path = "workspace/jarvis_migration_data.zip"
-                
-                # Zip ထဲကို ထည့်မယ့် Folder/File စာရင်း
-                targets = ["memory", "custom_skills", "core/prompts", ".env"]
-                
-                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                targets = ["memory", "custom_skills", "core/prompts"]
+                base = Path.cwd().resolve()
+
+                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                     for target in targets:
                         if os.path.isdir(target):
                             for root, _, files in os.walk(target):
                                 for file in files:
                                     file_path = os.path.join(root, file)
+                                    if is_secret_path(file_path, base):
+                                        logger.info(f"Skipping secret from zip: {file_path}")
+                                        continue
                                     zipf.write(file_path, arcname=file_path)
-                        elif os.path.isfile(target):
+                        elif os.path.isfile(target) and not is_secret_path(target, base):
                             zipf.write(target, arcname=target)
-                            
-                return f"✅ Success: Data, Prompts, Skills and .env files are zipped securely to '{zip_path}'."
+
+                return (
+                    f"✅ Success: Memory, prompts, and skills zipped to '{zip_path}'. "
+                    "Secrets (.env/sessions/keys) were excluded."
+                )
             except Exception as e:
                 return f"❌ Failed to zip files: {str(e)}"
 
-        elif action == "sftp_upload":
+        if action == "sftp_upload":
             host = kwargs.get("host")
             user = kwargs.get("username")
             pwd = kwargs.get("password")
@@ -79,18 +92,34 @@ class MigrationTool(BaseTool):
             if not os.path.exists(local_f):
                 return f"Error: Local file '{local_f}' does not exist. Did you zip it first?"
 
+            if is_secret_path(local_f):
+                return "🛑 Security Alert: Refusing to upload secret/credential files."
+
             try:
                 logger.info(f"📤 Uploading {local_f} to {host}:{remote_p} via SFTP...")
-                
-                # SFTP ဖြင့် လုံခြုံစွာ ဖိုင်ပို့ခြင်း
-                transport = paramiko.Transport((host, 22))
-                transport.connect(username=user, password=pwd)
-                sftp = paramiko.SFTPClient.from_transport(transport)
-
+                client = paramiko.SSHClient()
+                if os.path.exists(KNOWN_HOSTS):
+                    client.load_host_keys(KNOWN_HOSTS)
+                client.set_missing_host_key_policy(paramiko.RejectPolicy())
+                client.connect(
+                    hostname=host,
+                    username=user,
+                    password=pwd,
+                    timeout=15,
+                    look_for_keys=False,
+                    allow_agent=False,
+                )
+                sftp = client.open_sftp()
                 sftp.put(local_f, remote_p)
-
                 sftp.close()
-                transport.close()
+                client.close()
                 return f"✅ Success: File '{local_f}' successfully uploaded to '{host}:{remote_p}'."
             except Exception as e:
-                return f"❌ SFTP Upload Failed: {str(e)}"
+                msg = str(e).replace(pwd or "", "***")
+                logger.error(f"SFTP Upload Failed: {msg}")
+                return (
+                    f"❌ SFTP Upload Failed: {msg}. "
+                    "Ensure the host key exists in ~/.ssh/known_hosts (RejectPolicy is enforced)."
+                )
+
+        return f"Error: Unknown action '{action}'."

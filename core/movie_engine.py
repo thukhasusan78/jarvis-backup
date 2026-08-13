@@ -10,6 +10,14 @@ from google import genai
 
 # Config ဖိုင်ထဲက သော့များနှင့် ဆက်တင်များကို လှမ်းယူခြင်း
 from config import Config
+from core.movie_repository import (
+    init_db,
+    get_series_index,
+    save_series_index,
+    is_movie_downloaded,
+    is_movie_title_downloaded,
+    mark_movie_downloaded,
+)
 
 # ==========================================
 # 📝 LOGGING SETUP (Professional ခြေရာခံစနစ်)
@@ -21,85 +29,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("CORE_ENGINE")
 
-# ==========================================
-# 🗄️ DATABASE SETUP (Anti-Duplicate System)
-# ==========================================
-DB_FILE = "movies_memory.db"
-
-def init_db():
-    """ဇာတ်ကားဟောင်းများ မှတ်သားမည့် မှတ်ဉာဏ်တိုက် တည်ဆောက်ခြင်း"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS downloaded_movies (
-                        tmdb_id INTEGER PRIMARY KEY,
-                        title TEXT,
-                        media_type TEXT,
-                        target_channel TEXT,
-                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-    conn.commit()
-    conn.close()
-
-def get_series_index(series_key: str):
-    """Series ပိုစတာဟောင်း ရှိ/မရှိ နှင့် Data များ ရှာဖွေခြင်း"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS series_index (
-                        series_key TEXT PRIMARY KEY, message_id INTEGER, buttons_data TEXT, series_data TEXT)''')
-    try:
-        cursor.execute("SELECT message_id, buttons_data, series_data FROM series_index WHERE series_key = ?", (series_key,))
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE series_index ADD COLUMN series_data TEXT")
-        cursor.execute("SELECT message_id, buttons_data, series_data FROM series_index WHERE series_key = ?", (series_key,))
-    result = cursor.fetchone()
-    conn.close()
-    if result:
-        return {"message_id": result[0], "buttons_data": result[1], "series_data": result[2] if len(result)>2 else None}
-    return None
-
-def save_series_index(series_key: str, message_id: int, buttons_data: str, series_data: str = None):
-    """Series ပိုစတာသစ်၏ Data များကို မှတ်သားခြင်း"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS series_index (
-                        series_key TEXT PRIMARY KEY, message_id INTEGER, buttons_data TEXT, series_data TEXT)''')
-    try:
-        cursor.execute("INSERT OR REPLACE INTO series_index (series_key, message_id, buttons_data, series_data) VALUES (?, ?, ?, ?)", 
-                       (series_key, message_id, buttons_data, series_data))
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE series_index ADD COLUMN series_data TEXT")
-        cursor.execute("INSERT OR REPLACE INTO series_index (series_key, message_id, buttons_data, series_data) VALUES (?, ?, ?, ?)", 
-                       (series_key, message_id, buttons_data, series_data))
-    conn.commit()
-    conn.close()    
-
-def is_movie_downloaded(tmdb_id: int) -> bool:
-    """TMDB ID ဖြင့် တင်ပြီးသားကား ဟုတ်/မဟုတ် တိတိကျကျ စစ်ဆေးခြင်း"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT 1 FROM downloaded_movies WHERE tmdb_id = ?", (tmdb_id,))
-    result = cursor.fetchone()
-    conn.close()
-    return bool(result)    
-
-def is_movie_title_downloaded(title: str) -> bool:
-    """နာမည်ဖြင့် တင်ပြီးသားကား ဟုတ်/မဟုတ် အကြမ်းဖျင်းစစ်ဆေးခြင်း (Early Check)"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT 1 FROM downloaded_movies WHERE title LIKE ?", (title.strip(),))
-    result = cursor.fetchone()
-    conn.close()
-    return bool(result)
-
-def mark_movie_downloaded(tmdb_id: int, title: str, media_type: str, target_channel: str):
-    """တင်ပြီးသွားသော ကားများကို မှတ်ဉာဏ်ထဲ ထည့်သွင်းခြင်း"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO downloaded_movies (tmdb_id, title, media_type, target_channel) VALUES (?, ?, ?, ?)", 
-                   (tmdb_id, title, media_type, target_channel))
-    conn.commit()
-    conn.close()
-
-init_db() # စတင် Run သည်နှင့် Database အဆင်သင့်ဖြစ်ရမည်
+init_db()  # စတင် Run သည်နှင့် Database အဆင်သင့်ဖြစ်ရမည်
 
 # ==========================================
 # 🤖 စက်ရုပ်များ အသင့်ပြင်ဆင်ခြင်း (Clients Setup)
