@@ -1,6 +1,43 @@
-# Spec: Secretary Vision Replies, SE Team Removal, VIP Subscription Subscription Sales, Product Photo Delivery
+# PROJECT SPEC: Jarvis v2.1.0 — Secretary Vision, VIP Sales, Jammer Orders, Hardening
 
-> **Status: ✅ FULLY IMPLEMENTED (all 4 tasks)** — verified against source code on 2026-08-12. Task details below are kept as a historical/as-built record; ✅ DONE markers and the *Project explanation* section reflect the current codebase.
+> **Status: see "Required Changes (2026-08-13)" below.** This file (formerly `spec.md`) is the single source of truth for future agents. The sections under "Historical record" reflect the committed codebase.
+>
+> ⚠️ **INCIDENT (2026-08-13):** `watchdog.py`'s hard-recovery (`git fetch` + `git reset --hard origin/new-updates` + `git clean -fd`) fired and **wiped all uncommitted round-2 work** (jammer antenna model, proactive-message history persistence, prompt updates, test updates, this file's rename). Those changes are re-listed below as requirements and have been **re-applied** (see ✅ markers). Round-1 hardening (committed) survived.
+
+## 🚨 Required Changes (2026-08-13)
+
+### R0. Re-apply round-2 changes lost to watchdog hard recovery — ✅ DONE
+1. **Proactive Bot-API messages must persist to chat history** — after every successful proactive Bot-API send to `Config.ALLOWED_USER_ID`, save via `memory_controller.add_chat_message(user_id, "model", text)` (the `report_to_sir.py` pattern). Applied to: `tools/system/business_tools/jammer_order.py` (order receipt) and `tasks/executor.py` (scheduled-task reports). **Convention for future agents:** ANY tool that proactively messages the Boss via Bot API must also save the message to chat history immediately after a successful send.
+2. **Jammer antenna model in order reports** — `record_jammer_order` has a 7th required param `jammer_model` ("2 Antenna" / "3 Antenna"); receipt includes a `📡 Model:` line; `secretary.md` order collection asks for the model and includes `Model: [...]` in the `RECORD_JAMMER_ORDER` event data; `business_manager.md` jammer workflow parses/passes `jammer_model`; `tests/smoke_tests.py` schema test covers 7 params.
+3. **`spec.md` renamed → `PROJECT_SPEC.md`** ✅
+
+### R1. Watchdog fix — stop hard recovery — ✅ DONE
+- **Requirement:** Remove/disable the hard-recovery block in `watchdog.py` (was: `git fetch origin new-updates`, `git reset --hard`, `git clean -fd`). It overwrote local uncommitted work-in-progress on any watchdog error and caused real data loss.
+- **New behavior:** health checks, soft restart (`pkill`/`fuser` + relaunch) and Telegram alerts kept. If soft restart fails → send Sir a **FATAL alert asking for manual intervention** — the git working tree is never touched automatically.
+
+### R2. Image handling optimization — send ALL matching product images — ✅ DONE
+- When a customer requests product photos (e.g. the "3 Antennas" jammer), the system sends **all available matching images** in `workspace/products/` instead of a single default. `send_product_image` gained prefix matching (`jammer_3ant` → sends `jammer_3ant.jpg`, `jammer_3ant_2.jpg`, …); `secretary.md` updated to prefer prefix requests.
+
+### R3. Cleanup & de-bloating — remove Creator Team and Playwright Browser — ✅ DONE
+- Removed **Creator Team**: `tools/creator_team/` (`parallel_research.py`, `persona_manager.py`, `post_to_channel.py`, `save_research.py`), `creator_manager`/`content_writer` roles + prompts, and all registry/`delegate_task` enum references.
+- Removed **Playwright Browser**: `tools/browser/` (`navigator.py`, `session.py`, `visual.py`), `playwright` references, and related role references.
+- Verified with codebase search before deletion; compile + registry-load + smoke tests clean after.
+
+### R4. Communication workflow refinement — ✅ DONE
+- **Direct chat output:** agents must NOT auto-save intermediate files or task outputs to `workspace/` unless explicitly instructed; outputs go directly through chat.
+- **Dynamic Telegram response strategy:** content within Telegram limits → sent as text; exceeding limits → automatically formatted and sent as a file attachment.
+
+### R5. Production-grade QA protocol (mandatory for all future code)
+Before finalizing ANY code change, enforce three-stage validation:
+1. **Test** — validate the code functions as intended against the business logic (run `tests/smoke_tests.py` + targeted checks).
+2. **Verify** — check edge cases and robustness (empty inputs, API failures, quota limits, missing files).
+3. **Audit** — security and best-practice audit: vulnerabilities, anti-patterns, secrets handling, injection/traversal risks — production readiness.
+
+**QA result for R0–R4 (2026-08-13):** Test ✅ (`compileall` clean, registry loads 25 tools with zero import errors, **21/21 smoke tests passing** incl. new prefix-matching cases) · Verify ✅ (no lingering `creator_*`/`web_surfer`/`playwright` references in code, prompts, or requirements; watchdog contains no git commands) · Audit ✅ (traversal guard precedes prefix resolution; no circular imports; over-limit responses use in-memory `BytesIO`, no temp files; no secrets touched).
+
+---
+
+## Historical record (implemented & verified)
 
 ## Project explanation (context for implementer)
 

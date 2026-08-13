@@ -15,6 +15,27 @@ from perception.media_receiver import process_incoming_image
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger("TELEGRAM_INTERFACE")
 
+TELEGRAM_MSG_LIMIT = 4096
+
+async def send_dynamic_response(bot, chat_id: int, text: str):
+    """
+    📏 Dynamic Telegram Response Strategy (R4):
+    - Content သည် Telegram Limit (4096) အတွင်းဆိုရင် → Text အဖြစ် တိုက်ရိုက်ပို့မည်။
+    - Limit ကျော်သွားရင် → ဖိုင်အဖြစ် (.md) အလိုအလျောက် Format လုပ်ပြီး Attachment ပို့မည်။
+    """
+    if len(text) <= TELEGRAM_MSG_LIMIT:
+        await bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+        return
+    # Limit ကျော်နေလျှင် ဖိုင်အဖြစ်ပို့မည်
+    import io
+    file_bytes = io.BytesIO(text.encode("utf-8"))
+    file_bytes.name = "jarvis_response.md"
+    await bot.send_document(
+        chat_id=chat_id,
+        document=file_bytes,
+        caption="📄 အဖြေရှည်လွားသဖြင့် ဖိုင်အဖြစ် ပို့ပေးလိုက်ပါသည် ဆရာ။"
+    )
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
     await update.message.reply_text(f"မင်္ဂလာပါ {user_name} ခင်ဗျာ။ ကျွန်တော် Jarvis ပါ။\nဘာကူညီပေးရမလဲ?")
@@ -90,9 +111,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     pass
             
             # အလုပ်အားလုံးပြီးသွားမှ ဆရာ့ဆီကို Task ID နဲ့တကွ Report အပြီးသတ် လာတင်မည်
+            # 📏 R4: Limit အလိုက် Text (သို့) File Attachment အဖြစ် Dynamic ပို့မည်
             formatted_reply = format_response(response)
-            final_message = f"{formatted_reply}"
-            await context.bot.send_message(chat_id=chat_id, text=final_message, parse_mode="HTML")
+            await send_dynamic_response(context.bot, chat_id, f"{formatted_reply}")
 
             # 🧹 Storage မပြည့်အောင် Task ပြီးသွားလျှင် MD ဖိုင်ကို အလိုအလျောက် ရှင်းလင်းမည် (ယာယီပိတ်ထားသည်)
             task_file = os.path.join("workspace", "tasks", "pending", f"{task_id}.md")

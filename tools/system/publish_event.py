@@ -16,7 +16,7 @@ class PublishEventTool(BaseTool):
     def get_parameters(self) -> Dict[str, types.Schema]:
         return {
             "event_type": types.Schema(type=types.Type.STRING, description="e.g., 'RESEARCH_DONE', 'CODE_WRITTEN', 'WORKFLOW_COMPLETED'"),
-            "target_agent": types.Schema(type=types.Type.STRING, description="The logical next agent or manager (e.g., 'persona_manager', 'content_writer', 'ceo')"),
+            "target_agent": types.Schema(type=types.Type.STRING, description="The logical next agent or manager (e.g., 'business_manager', 'deep_researcher', 'ceo')"),
             "data": types.Schema(
                 type=types.Type.STRING, 
                 description="CRITICAL: The actual findings, detailed instructions, or full output to pass to the next agent. NEVER leave this blank. If you are passing instructions, write the full prompt here."

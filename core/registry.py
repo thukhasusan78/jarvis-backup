@@ -68,8 +68,6 @@ class ToolRegistry:
                 # 🛑 THE FIX: publish_event ကို ဘယ်သူမှ သိမ်းပိုက်ခွင့်မရှိအောင် ကာကွယ်ခြင်း
                 if tool.name == "publish_event":
                     assigned_role = "all"
-                elif "tools.browser" in module:
-                    assigned_role = "web_surfer"
                 elif "tools.system.business_tools" in module:
                     # 🌟 THE FIX: Business Tool များကို သက်ဆိုင်ရာ Role များသာ မြင်ခွင့်ပေးခြင်း
                     assigned_role = ["business_manager", "secretary"]

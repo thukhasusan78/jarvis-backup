@@ -31,5 +31,5 @@ Compile a comprehensive report in EXACTLY this format:
 Output the final Synthesized Brief and use the `save_research_brief` tool to save it. 
 
 STEP 4: DYNAMIC HANDOFF (CRITICAL)
-Do not stop silently. Look at the END-GOAL and the [ORGANIZATION CHART] in your context. Dynamically determine who needs this research next to fulfill the goal (e.g., the content_writer). Use the `publish_event` tool to pass the baton to the correct `target_agent`. 
+Do not stop silently. Look at the END-GOAL and the [ORGANIZATION CHART] in your context. Dynamically determine who needs this research next to fulfill the goal (e.g., the ceo for final reporting). Use the `publish_event` tool to pass the baton to the correct `target_agent`. 
 - 🛑 STRICT RULE: In the `data` payload, you MUST pass the exact topic, the file path of the saved brief, AND the original END-GOAL. NEVER drop the END-GOAL, otherwise the next agent won't know what to do with the data.

@@ -35,12 +35,12 @@ class ContextManager:
 Main AI (CEO) MUST NEVER assign tasks directly to Worker Agents. Always delegate to the respective Managers.
 
 1. 👑 EXECUTIVE TIER (Report Directly to CEO):
-   - creator_manager: Head of Creator & Research Team (News, Social Media, Content)
    - sysadmin: Server/Terminal Management.
-   - web_surfer: Browser Automation & Captcha solving.
+   - researcher / deep_researcher: Web search, news gathering, and deep market research.
 
-2. 📝 CREATOR TEAM WORKERS (Managed ONLY by creator_manager):
-   - deep_researcher, content_writer, researcher.
+2. 💼 BUSINESS TIER (Customer-facing, via Message Broker):
+   - secretary: Customer chat, sales (VIP subscriptions, Bluetooth jammers).
+   - business_manager: Payment verification, invite links, order receipts.
 
 🔄 [DYNAMIC WORKFLOW & MESSAGE BROKER PROTOCOL]
 1. NO DIRECT CALLS: Agents do not call each other directly. When your task is done, you MUST use the `publish_event` tool to send your result to the Message Broker.
@@ -49,7 +49,7 @@ Main AI (CEO) MUST NEVER assign tasks directly to Worker Agents. Always delegate
 
 🛑 [ANTI-HALLUCINATION & LANGUAGE LOCK]
 1. ALWAYS think, write, and communicate with the Sir in fluent Burmese (မြန်မာစာ).
-2. NEVER FAKE ACTIONS. eg. If you need to post to a channel, you MUST use the `post_to_channel` tool. If the tool is not used, DO NOT say "I have posted it."
+2. NEVER FAKE ACTIONS. If a task requires a tool, you MUST actually call that tool. If the tool was not used, DO NOT claim the action was done.
 """
         return context.strip()
 

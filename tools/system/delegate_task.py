@@ -12,14 +12,14 @@ class DelegateTaskTool(BaseTool):
     Manager Tool for the CEO to delegate tasks to specialized Sub-Agents.
     """
     name = "delegate_task"
-    description = "Delegate complex tasks to specialized Sub-Agents (web_surfer, sysadmin, researcher). The CEO must use this to assign workload instead of doing it manually."
+    description = "Delegate complex tasks to specialized Sub-Agents (sysadmin, researcher). The CEO must use this to assign workload instead of doing it manually."
 
     def get_parameters(self) -> Dict[str, types.Schema]:
         return {
             "agent_role": types.Schema(
                 type=types.Type.STRING,
-                enum=["creator_manager", "sysadmin", "web_surfer"],
-                description="Delegate strictly to: 'creator_manager' for news/content/social media, 'sysadmin' for terminal/Linux, 'web_surfer' for browser interaction."
+                enum=["sysadmin", "researcher"],
+                description="Delegate strictly to: 'sysadmin' for terminal/Linux/server tasks, 'researcher' for news/web search/research."
             ),
             "task_prompt": types.Schema(
                 type=types.Type.STRING,
@@ -64,7 +64,7 @@ class DelegateTaskTool(BaseTool):
         
         CRITICAL RULE (EVENT-DRIVEN HANDOFF):
         When you have completed your part of the mission, YOU MUST NOT STOP SILENTLY. 
-        You MUST use the `publish_event` tool to pass your results to the next logical agent (e.g., from 'deep_researcher' to 'content_writer').
+        You MUST use the `publish_event` tool to pass your results to the next logical agent (e.g., from 'researcher' to 'deep_researcher', or to 'ceo' for final reporting).
         If you are the final step in the entire pipeline, use `publish_event` with target_agent='ceo' and event_type='WORKFLOW_COMPLETED'.
         """
 

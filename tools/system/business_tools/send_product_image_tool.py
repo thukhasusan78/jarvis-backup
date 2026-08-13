@@ -10,13 +10,13 @@ PRODUCTS_DIR = os.path.join("workspace", "products")
 
 class SendProductImageTool(BaseTool):
     name = "send_product_image"
-    description = "Send a product photo from workspace/products/ to a customer via the userbot session. Use this when a customer asks to see product photos."
+    description = "Send product photo(s) from workspace/products/ to a customer via the userbot session. Use this when a customer asks to see product photos. If a product name/prefix is given (e.g. 'jammer_3ant'), ALL matching images are sent."
 
     def get_parameters(self):
         return {
             "chat_id": types.Schema(type=types.Type.INTEGER, description="The exact Telegram Chat ID of the customer."),
-            "image_filename": types.Schema(type=types.Type.STRING, description="Filename inside workspace/products/ only (e.g. jammer_2ant.jpg)."),
-            "caption": types.Schema(type=types.Type.STRING, description="Optional caption for the photo.")
+            "image_filename": types.Schema(type=types.Type.STRING, description="Exact filename (e.g. jammer_2ant.jpg) OR a product prefix (e.g. 'jammer_3ant' sends jammer_3ant.jpg, jammer_3ant_2.jpg, ...). Plain names only, no paths."),
+            "caption": types.Schema(type=types.Type.STRING, description="Optional caption for the photo(s).")
         }
 
     def get_required(self):
@@ -29,10 +29,16 @@ class SendProductImageTool(BaseTool):
             return "❌ Error: Invalid filename. Only plain filenames inside workspace/products/ are allowed."
 
         os.makedirs(PRODUCTS_DIR, exist_ok=True)
-        path = os.path.join(PRODUCTS_DIR, safe_name)
+        available = sorted(f for f in os.listdir(PRODUCTS_DIR) if os.path.isfile(os.path.join(PRODUCTS_DIR, f)))
 
-        if not os.path.exists(path):
-            available = sorted(f for f in os.listdir(PRODUCTS_DIR) if os.path.isfile(os.path.join(PRODUCTS_DIR, f)))
+        # 2. Resolve targets: exact file match, otherwise prefix match (send ALL matching images)
+        if safe_name in available:
+            targets = [safe_name]
+        else:
+            prefix = os.path.splitext(safe_name)[0]  # 'jammer_3ant.jpg' or 'jammer_3ant' → 'jammer_3ant'
+            targets = [f for f in available if os.path.splitext(f)[0].startswith(prefix)]
+
+        if not targets:
             listing = ", ".join(available) if available else "(no product images uploaded yet)"
             return f"❌ Error: '{safe_name}' not found. Available images: {listing}"
 
@@ -41,9 +47,12 @@ class SendProductImageTool(BaseTool):
             app = getattr(module, 'app', None)
             if not app:
                 return "❌ Error: Pyrogram userbot app not running in this process."
-            await app.send_photo(chat_id, path, caption=caption or None)
-            logger.info(f"📸 Sent product image {safe_name} to chat {chat_id}")
-            return f"✅ SUCCESS: Product image {safe_name} sent to Chat ID {chat_id}."
+            sent = []
+            for fname in targets:
+                await app.send_photo(chat_id, os.path.join(PRODUCTS_DIR, fname), caption=caption or None)
+                sent.append(fname)
+                logger.info(f"📸 Sent product image {fname} to chat {chat_id}")
+            return f"✅ SUCCESS: Sent {len(sent)} product image(s) to Chat ID {chat_id}: {', '.join(sent)}"
         except Exception as e:
             logger.error(f"Product Image Tool Error: {e}")
             return f"❌ Failed to send product image: {e}"

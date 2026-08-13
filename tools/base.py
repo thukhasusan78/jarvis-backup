@@ -8,7 +8,7 @@ class BaseTool:
     """
     name: str = "base_tool"
     description: str = "Base description"
-    owner_role: str = "all"  # 'ceo', 'web_surfer', 'sysadmin', 'researcher', သို့မဟုတ် 'all'
+    owner_role: str = "all"  # 'ceo', 'sysadmin', 'researcher', 'business_manager', 'secretary', သို့မဟုတ် 'all'
     is_terminal: bool = False # 👈 (NEW) Tool သုံးပြီးရင် Loop ချက်ချင်းရပ်ရမလား (Default: False)
     
     def get_parameters(self) -> Dict[str, types.Schema]:

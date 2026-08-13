@@ -57,29 +57,18 @@ def recover_jarvis():
         return
 
     # ==========================================
-    # အဆင့် (၂): Soft Restart လုံးဝ မရတော့မှသာ GitHub မှ ဆွဲချမည် (Hard Recovery)
+    # 🛑 HARD RECOVERY (Git Reset) ကို အပြီးတပိုင် ပိတ်ထားသည် (2026-08-13)
+    # အကြောင်းရင်း - git reset --hard / git clean -fd က Local WIP Code များကို
+    # အကြိမ်ပေါင်းများစွာ ဖျက်ပစ်ခဲ့ဖူးသည်။ ဤနေရာတွင် Git Working Tree ကို
+    # ဘယ်အချိန်မှ အလိုအလျောက် မထိတော့ပါ။ Soft Restart မရလျှင် ဆရာ့ကိုသာ အကြောင်းကြားမည်။
     # ==========================================
-    send_alert("**[HARD RECOVERY INITIATED]**\nStarting System Restoration!")
-    logger.warning("Soft restart failed. Executing Git Hard Reset...")
-
-    try:
-        subprocess.run(["git", "fetch", "origin", "new-updates"], check=True)
-        subprocess.run(["git", "reset", "--hard", "origin/new-updates"], check=True)
-        subprocess.run(["git", "clean", "-fd"], check=True)
-
-        logger.info("Restarting Jarvis after Hard Reset...")
-        subprocess.Popen("nohup venv/bin/python main.py >> jarvis.log 2>&1 &", shell=True)
-        time.sleep(10)
-
-        if check_jarvis_health():
-            send_alert("**[HARD RECOVERY SUCCESSFUL]**\nSystem Restored! All Systems are Fully Operational, Sir!")
-            logger.info("Hard Recovery Successful.")
-        else:
-            send_alert("**[FATAL ERROR]**\nGitHub မှ Code ဖြင့်လည်း အသက်ပြန်သွင်း၍ မရပါ။ ကျေးဇူးပြု၍ Server သို့ ဝင်ရောက် စစ်ဆေးပေးပါ ဆရာ။")
-            logger.critical("Failed to restart Jarvis even after Hard Reset!")
-    except Exception as e:
-        logger.error(f"Error during hard recovery: {e}")
-        send_alert(f"⚠️ **[RECOVERY FAILED]**\nError: {e}")
+    send_alert(
+        "**[FATAL ERROR]**\n"
+        "Soft Restart ဖြင့် Jarvis ကို အသက်ပြန်သွင်း၍ မရပါ။\n"
+        "Local Code များ ဆုံးရှုံးမှုမရှိစေရန် Git Hard Recovery ကို ပိတ်ထားပါပြီ။\n"
+        "ကျေးဇူးပြု၍ Server သို့ ဝင်ရောက် စစ်ဆေးပေးပါ ဆရာ။"
+    )
+    logger.critical("Soft restart failed. Hard recovery is DISABLED to protect local work. Manual intervention required.")
 
 def cleanup_logs():
     """ညသန်းခေါင်ယံ Log ရှင်းလင်းရေး (နောက်ဆုံး လိုင်း ၁၀၀၀ သာ ချန်မည်)"""

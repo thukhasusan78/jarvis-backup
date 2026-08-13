@@ -35,11 +35,13 @@ async def run_scheduled_task(prompt: str, user_id: int):
         """
         response = await agent.chat(system_trigger_prompt, user_id=user_id)
         
-        # 2. Telegram ပို့ခြင်း (Log တင်မကတော့ဘူး)
+        # 2. Telegram ပို့ခြင်း + 💾 Chat History ထဲ မှတ်ထားခြင်း (နောက်ပိုင်း ဆရာက မေးရင် AI က Context အဖြစ်သုံးနိုင်ရန်)
         if Config.TELEGRAM_TOKEN and user_id:
             bot = Bot(token=Config.TELEGRAM_TOKEN)
             await bot.send_message(chat_id=user_id, text=f"{response}", parse_mode="Markdown")
-            logger.info("✅ Report sent to Telegram.")
+            from memory.memory_controller import memory_controller
+            memory_controller.add_chat_message(user_id, "model", f"{response}")
+            logger.info("✅ Report sent to Telegram and saved to History.")
         else:
             logger.warning("⚠️ Cannot send to Telegram: Token or User ID missing.")
             
