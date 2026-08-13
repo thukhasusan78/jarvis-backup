@@ -8,6 +8,21 @@ logger = logging.getLogger("PRODUCT_IMAGE_TOOL")
 
 PRODUCTS_DIR = os.path.join("workspace", "products")
 
+# 📡 R7: Self-describing product photos — prefix → default caption (model + DEFAULT price).
+# ⚠️ Prices here are static defaults; update this mapping if prices change.
+PRODUCT_CAPTIONS = {
+    "jammer_2ant": "📡 2 Antenna Jammer — 140,000 Ks",
+    "jammer_3ant": "📡 3 Antenna Jammer — 190,000 Ks",
+}
+
+def _default_caption(fname: str) -> str:
+    """Resolve the default caption for a product file by prefix; fall back to the filename."""
+    stem = os.path.splitext(fname)[0]
+    for prefix, cap in PRODUCT_CAPTIONS.items():
+        if stem.startswith(prefix):
+            return cap
+    return fname
+
 class SendProductImageTool(BaseTool):
     name = "send_product_image"
     description = "Send product photo(s) from workspace/products/ to a customer via the userbot session. Use this when a customer asks to see product photos. If a product name/prefix is given (e.g. 'jammer_3ant'), ALL matching images are sent."
@@ -49,7 +64,8 @@ class SendProductImageTool(BaseTool):
                 return "❌ Error: Pyrogram userbot app not running in this process."
             sent = []
             for fname in targets:
-                await app.send_photo(chat_id, os.path.join(PRODUCTS_DIR, fname), caption=caption or None)
+                per_caption = caption or _default_caption(fname)  # R7: every photo is self-describing
+                await app.send_photo(chat_id, os.path.join(PRODUCTS_DIR, fname), caption=per_caption)
                 sent.append(fname)
                 logger.info(f"📸 Sent product image {fname} to chat {chat_id}")
             return f"✅ SUCCESS: Sent {len(sent)} product image(s) to Chat ID {chat_id}: {', '.join(sent)}"

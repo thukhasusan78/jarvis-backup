@@ -35,6 +35,29 @@ Before finalizing ANY code change, enforce three-stage validation:
 
 **QA result for R0–R4 (2026-08-13):** Test ✅ (`compileall` clean, registry loads 25 tools with zero import errors, **21/21 smoke tests passing** incl. new prefix-matching cases) · Verify ✅ (no lingering `creator_*`/`web_surfer`/`playwright` references in code, prompts, or requirements; watchdog contains no git commands) · Audit ✅ (traversal guard precedes prefix resolution; no circular imports; over-limit responses use in-memory `BytesIO`, no temp files; no secrets touched).
 
+## 🚨 Required Changes (2026-08-13, Round 2 — Jammer price/model mix-up)
+
+**Incident:** A customer received all 3 jammer photos mixed together (Secretary passed the bare prefix `jammer`, which prefix-matched both models), then asked "ဒါကစျေးဘယ်လောက်လဲ" ("how much is THIS?") as a **reply-quote to the 3-Antenna photo**. The bot answered 140,000 Ks — the **2-Antenna price** — because (a) photos carried no identifying captions and (b) reply-quote context was never fed to the brain. The same customer later placed an order **without stating a model**, and the Secretary guessed "2 Antenna" in `record_jammer_order`.
+
+### R6. Reply-quote context capture — ✅ DONE
+- `interfaces/userbot/plugins/p_secretary.py`: when an incoming message has `message.reply_to_message`, append a SYSTEM note to `user_text` before it reaches the brain:
+  - Quoted message has text/caption → `[SYSTEM: Customer is replying to (quoting) a previous message. Quoted message text/caption: "..."]` with an instruction to use it to resolve references like "ဒါ" / "this one".
+  - Quoted message is caption-less media → note that the exact photo is unknown and the Secretary should ask for clarification rather than guess.
+- No extra API calls — caption matching only (relies on R7 captions).
+
+### R7. Self-describing product photos — ✅ DONE
+- `tools/system/business_tools/send_product_image_tool.py`: new `PRODUCT_CAPTIONS` prefix→caption mapping (`jammer_2ant*` → `📡 2 Antenna Jammer — 140,000 Ks`, `jammer_3ant*` → `📡 3 Antenna Jammer — 190,000 Ks`). Every photo sent gets a per-file caption (explicit `caption` arg overrides; unknown files fall back to the filename).
+- ⚠️ **Maintenance note:** these captions embed the DEFAULT prices. If prices change (live business knowledge / admin reply extraction), update `PRODUCT_CAPTIONS` too — it is intentionally static and offline.
+
+### R8. Secretary prompt hardening (`core/prompts/business/secretary.md`) — ✅ DONE
+1. **Model-specific photo prefixes:** always use `jammer_2ant` or `jammer_3ant`; the bare `jammer` prefix is allowed ONLY when the customer explicitly asks to see both models.
+2. **Ambiguous price questions:** if no quoted-photo SYSTEM context identifies the model, quote BOTH prices (2 Antenna 140,000 / 3 Antenna 190,000) — never guess. If a quoted-caption SYSTEM note is present, answer for that model.
+3. **🛑 No model, no order:** never `publish_event` a `RECORD_JAMMER_ORDER` until the customer has explicitly stated the model (2 Antenna or 3 Antenna) in text. If missing, ask first — do not infer from photo history.
+
+### R9. Verification — ✅ DONE
+- `tests/smoke_tests.py`: new offline checks — caption mapping resolves per file (`_default_caption`), prefix `jammer` resolves to all 3 files with correct per-model captions (mocked userbot `send_photo`), and unknown files fall back to filename captions.
+- `python -m compileall` clean; full smoke suite passing.
+
 ---
 
 ## Historical record (implemented & verified)

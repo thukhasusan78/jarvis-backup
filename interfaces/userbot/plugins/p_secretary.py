@@ -182,7 +182,26 @@ async def handle_incoming_messages(client, message):
                 return
 
             user_text = message.text
-            
+
+        # --- 💬 R6: Reply-Quote Context Capture ---
+        # Customer က အရင်စာ/ပုံတစ်ခုကို reply (quote) လုပ်ပြီး မေးနေတာဆိုရင် (ဥပမာ "ဒါကစျေးဘယ်လောက်လဲ")
+        # ဘယ်ပုံ/ဘယ်စာကို ရည်ညွှန်းတာလဲ ဆိုတာကို Brain သိရအောင် SYSTEM NOTE ထည့်ပေးမည်။
+        replied = getattr(message, "reply_to_message", None)
+        if replied and user_text:
+            quoted = replied.text or replied.caption
+            if quoted:
+                user_text += (
+                    f"\n[SYSTEM: Customer is replying to (quoting) a previous message. "
+                    f"Quoted message text/caption: \"{quoted}\" — use this to resolve references "
+                    f"like 'ဒါ', 'အဲ့တာ', 'this one'.]"
+                )
+            elif getattr(replied, "media", None):
+                user_text += (
+                    "\n[SYSTEM: Customer is replying to (quoting) a previous photo/media message "
+                    "that has NO caption, so the exact content is unknown. If the question depends "
+                    "on WHICH photo it is, politely ask the customer to clarify instead of guessing.]"
+                )
+
         if not user_text and not message.media:
             logger.info("👻 Ghost Message (Video Call Ended / System Log) detected. Dropping instantly.")
             return

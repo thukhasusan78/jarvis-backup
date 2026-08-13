@@ -44,6 +44,41 @@ async def test_send_product_image_guard():
     check("unknown prefix → not found listing", "not found" in r and "Available images" in r, r)
 
 
+async def test_product_captions():
+    print("\n🏷️ send_product_image — R7 per-model auto captions")
+    from tools.system.business_tools.send_product_image_tool import _default_caption, PRODUCT_CAPTIONS
+    import types as _types
+    # 1. Caption mapping resolves per file
+    check("jammer_2ant.jpg → 2 Antenna caption", "2 Antenna" in _default_caption("jammer_2ant.jpg") and "140,000" in _default_caption("jammer_2ant.jpg"), _default_caption("jammer_2ant.jpg"))
+    check("jammer_3ant.jpg → 3 Antenna caption", "3 Antenna" in _default_caption("jammer_3ant.jpg") and "190,000" in _default_caption("jammer_3ant.jpg"), _default_caption("jammer_3ant.jpg"))
+    check("jammer_3ant_2.jpg → 3 Antenna caption", "3 Antenna" in _default_caption("jammer_3ant_2.jpg"), _default_caption("jammer_3ant_2.jpg"))
+    check("unknown file → filename fallback", _default_caption("vip_preview.jpg") == "vip_preview.jpg", _default_caption("vip_preview.jpg"))
+    # 2. Mocked userbot: bare prefix 'jammer' sends all 3 files, each with its own model caption
+    sent = []
+    class FakeApp:
+        async def send_photo(self, chat_id, path, caption=None):
+            sent.append((os.path.basename(path), caption))
+    fake_module = _types.SimpleNamespace(app=FakeApp())
+    old = sys.modules.get('interfaces.userbot.secretary_main')
+    sys.modules['interfaces.userbot.secretary_main'] = fake_module
+    try:
+        tool = tool_registry.get_tool("send_product_image")
+        r = await tool.execute(chat_id=123, image_filename="jammer")
+        check("prefix 'jammer' sends all 3 images", r.startswith("✅") and len(sent) == 3, f"{r} | sent={sent}")
+        caps = {f: c for f, c in sent}
+        check("2ant photo captioned 2 Antenna", any(f.startswith("jammer_2ant") and "2 Antenna" in (c or "") for f, c in caps.items()), str(caps))
+        check("3ant photos captioned 3 Antenna", all("3 Antenna" in (caps.get(f) or "") for f in caps if f.startswith("jammer_3ant")), str(caps))
+        # 3. Explicit caption overrides auto-caption
+        sent.clear()
+        r = await tool.execute(chat_id=123, image_filename="jammer_2ant.jpg", caption="Custom")
+        check("explicit caption overrides", sent and sent[0][1] == "Custom", str(sent))
+    finally:
+        if old is not None:
+            sys.modules['interfaces.userbot.secretary_main'] = old
+        else:
+            sys.modules.pop('interfaces.userbot.secretary_main', None)
+
+
 async def test_vip_invite_config_guard():
     print("\n💎 generate_vip_invite_link — config guard")
     from config import Config
@@ -98,6 +133,7 @@ async def main():
     print("🧪 JARVIS SMOKE TESTS")
     print("=" * 50)
     await test_send_product_image_guard()
+    await test_product_captions()
     await test_vip_invite_config_guard()
     test_role_gating()
     test_vision_quota_storage()
