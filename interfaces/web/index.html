@@ -2,22 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>JARVIS HUD</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=2">
 </head>
 <body class="flex flex-col items-center justify-center h-screen">
 
     <div id="init-screen" class="text-center cursor-pointer" onclick="systemBoot()">
         <h1 class="text-5xl font-bold tracking-widest text-cyan-400 animate-pulse">J.A.R.V.I.S</h1>
         <p class="text-sm mt-4 text-gray-400">TOUCH TO INITIALIZE SYSTEM</p>
+        <p id="browser-notice" class="hidden text-sm mt-6 text-amber-400 max-w-md mx-auto">
+            Voice requires Chrome or Edge (Web Speech API). Open this HUD in Chrome/Edge over HTTPS.
+        </p>
     </div>
 
     <div id="hud-interface" class="hidden w-full h-full p-4 relative flex flex-col items-center justify-center">
         <div class="absolute top-4 left-4 text-xs text-cyan-500 font-bold">
             <p>SYS: ONLINE</p>
-            <p>NET: SECURE</p>
+            <p id="net-status">NET: CONNECTING</p>
             <p>LOC: MANDALAY</p>
         </div>
         <div class="absolute top-4 right-4 text-xs text-right text-cyan-500 font-bold">
@@ -38,13 +41,26 @@
         <div class="w-3/4 max-w-2xl bg-black bg-opacity-60 border border-cyan-800 p-4 rounded-lg shadow-lg">
             <p class="mb-2"><b class="text-gray-400">You:</b> <span id="user-text" class="text-white">...</span></p>
             <p><b class="text-cyan-400">Jarvis:</b> <span id="jarvis-text" class="text-cyan-100">...</span></p>
+            <div class="flex mt-3 gap-2">
+                <input id="text-input" type="text" placeholder="Type here if voice fails..."
+                    class="flex-1 bg-black bg-opacity-80 border border-cyan-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-400">
+                <button onclick="sendTextInput()"
+                    class="px-4 py-2 bg-cyan-900 border border-cyan-500 rounded text-cyan-200 text-sm font-bold hover:bg-cyan-800">
+                    SEND
+                </button>
+            </div>
+            <p id="stt-fallback-note" class="hidden text-xs text-amber-400 mt-2">
+                Voice input unavailable on this device/network — please type instead.
+            </p>
         </div>
     </div>
+
+    <div id="popup-layer"></div>
 
     <div id="shutdown-screen" class="hidden w-full h-full bg-black flex items-center justify-center">
         <p class="text-red-500 text-3xl font-bold tracking-widest animate-pulse">SYSTEM OFFLINE</p>
     </div>
 
-    <script src="/static/js/app.js?v=17"></script>
+    <script src="/static/js/app.js?v=23"></script>
 </body>
 </html>

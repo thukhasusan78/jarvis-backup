@@ -24,3 +24,119 @@ body {
 }
 
 .animate-spin-slow { animation: spin 3s linear infinite; }
+
+/* --- Hologram Popup Windows --- */
+#popup-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+}
+
+.hud-popup {
+    position: absolute;
+    width: min(480px, 92vw);
+    background: rgba(0, 12, 16, 0.92);
+    border: 1px solid rgba(0, 255, 255, 0.45);
+    border-radius: 8px;
+    box-shadow: 0 0 24px rgba(0, 255, 255, 0.25), inset 0 0 12px rgba(0, 255, 255, 0.08);
+    pointer-events: auto;
+    animation: popupIn 0.35s ease forwards;
+    overflow: hidden;
+}
+
+@keyframes popupIn {
+    0% { opacity: 0; transform: scale(0.85) translateY(10px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.hud-popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: rgba(0, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+    cursor: move;
+    user-select: none;
+    touch-action: none;
+}
+
+.hud-popup-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: #67e8f9;
+    text-transform: uppercase;
+}
+
+.hud-popup-close {
+    background: none;
+    border: 1px solid rgba(0, 255, 255, 0.4);
+    color: #67e8f9;
+    border-radius: 4px;
+    width: 28px;
+    height: 28px;
+    line-height: 1;
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.hud-popup-close:hover { background: rgba(255, 0, 0, 0.25); border-color: #f87171; color: #fca5a5; }
+
+.hud-popup-body {
+    padding: 10px;
+    font-size: 14px;
+    color: #cffafe;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.hud-popup-body iframe {
+    width: 100%;
+    height: 300px;
+    border: 0;
+    border-radius: 4px;
+}
+
+.hud-popup-body img {
+    max-width: 100%;
+    border-radius: 4px;
+}
+
+.hud-popup table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.hud-popup th, .hud-popup td {
+    border-bottom: 1px solid rgba(0, 255, 255, 0.15);
+    padding: 4px 6px;
+    text-align: left;
+    vertical-align: top;
+}
+.hud-popup th { color: #22d3ee; letter-spacing: 0.05em; }
+
+.hud-weather-temp {
+    font-size: 40px;
+    font-weight: 700;
+    color: #a5f3fc;
+    line-height: 1;
+}
+
+.hud-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border: 1px solid rgba(0, 255, 255, 0.4);
+    border-radius: 9999px;
+    font-size: 11px;
+    margin: 2px 4px 2px 0;
+    color: #a5f3fc;
+}
+
+/* Mobile: keep popups and transcript usable on small screens */
+@media (max-width: 640px) {
+    #reactor { width: 9rem; height: 9rem; margin-bottom: 1rem; }
+    .hud-popup { width: 94vw; }
+    .hud-popup-body { max-height: 52vh; }
+}

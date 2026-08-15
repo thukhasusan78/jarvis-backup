@@ -46,10 +46,130 @@ Full architecture audit → 5-phase hardening. **62/62 smoke tests passing, comp
 - Shared Gemini client/retry in `core/gemini_client.py` (used by both brains). Movie DB extracted to `core/movie_repository.py`. `manual_movie_trigger` uses proper `get_parameters()` (Pydantic `args_schema` bug class eliminated). Hologram tool moved to `tools/ui/` (now registered). Empty `core/evolution.py` deleted.
 
 ### Known remaining risks (accepted / future work)
-- Voice WebSocket (`/ws/voice`) is unauthenticated — out of scope this cycle; do not expose publicly.
+- Voice WebSocket (`/ws/voice`) remains **unauthenticated at the app layer** on purpose. Production exposure is via **Cloudflare Access** on `jarvis.thukha.online` + Tunnel to `127.0.0.1:8000` + optional `VOICE_ALLOWED_ORIGINS` Origin check. Do not publish the HUD without Access.
+- Streaming brain does not yet feed tool results back into Gemini for a spoken follow-up; hologram tool JSON is only partially wired to the HUD.
+- Browser STT only (Chrome/Edge Web Speech API, `my-MM`); no server-side Whisper / Safari support yet.
 - `custom_skills/` tools default to `owner_role="ceo"` (was "all").
 - Receipt freshness window (2h) is enforced by Gemini-extracted time — a genuinely old receipt is correctly rejected (observed 2026-08-13: 13:49 receipt submitted ~16:42).
 - Vision quota is consumed before the Gemini call completes (failed analyses still count).
+
+---
+
+## 🎙️ Voice HUD deployment (2026-08-15) — ✅ CODE DONE / ops checklist in RUNBOOK
+
+Ship the existing JARVIS HUD (`interfaces/web/`) and `/ws/voice` pipeline to **https://jarvis.thukha.online**.
+
+### Code
+- WS keepalive: server JSON `ping` every 20s; client replies `pong`; exponential reconnect in `interfaces/web/static/js/app.js`.
+- Origin allowlist: `Config.VOICE_ALLOWED_ORIGINS` / `is_voice_origin_allowed()` in `interfaces/voice/stream_engine.py`.
+- Bind default: `HOST=127.0.0.1` (tunnel-only ingress). Documented in `.env.example` + `deploy/RUNBOOK.md`.
+- Chrome/Edge-only STT notice on the init screen when Web Speech API is missing.
+- Deploy templates: `deploy/cloudflared.yml`, `deploy/cloudflared.service`.
+
+### Ops (manual — Cloudflare dashboard + VPS)
+1. Set `.env`: `HOST=127.0.0.1`, `VOICE_ALLOWED_ORIGINS=https://jarvis.thukha.online`; restart `jarvis`.
+2. Install/configure `cloudflared` tunnel → `http://127.0.0.1:8000`; DNS `jarvis.thukha.online` proxied.
+3. Cloudflare Access app on `jarvis.thukha.online` path `*`, allow-list owner email(s).
+4. Voice test: Chrome → Access login → initialize HUD → mic → Burmese STT → Gemini TTS (`Enceladus`).
+
+Full step-by-step: [`deploy/RUNBOOK.md`](deploy/RUNBOOK.md) § Voice HUD.
+
+### Out of scope this round
+- Server Whisper / Gemini Live API native audio / app-level login.
+
+---
+
+## 🦾 Voice HUD 2.0 (2026-08-15, Round 2) — Gemini TTS, popup widgets, mobile fixes
+
+### R10. TTS: edge-tts → Gemini TTS — ⏪ REVERTED (2026-08-15, user decision)
+- Gemini TTS (`gemini-2.5-flash-preview-tts`, Enceladus) was implemented but proved unreliable in production: invalid-key 400s, "model tried to generate text" 400s, and empty-content responses. Fixes were applied (R16) but the user chose to **switch back to edge-tts** (`my-MM-ThihaNeural`) — free, no API key, stable Burmese voice.
+- Current engine: `interfaces/voice/stream_engine.py::fetch_tts` uses `edge_tts.Communicate(chunk, "my-MM-ThihaNeural")` (MP3 bytes, browser `decodeAudioData`). `Config.VOICE_MODEL` / `Config.VOICE_NAME` are unused leftovers.
+
+### R11. Hologram popup widgets — ✅ DONE
+- `tools/ui/hologram_tool.py` now **returns the `hologram_trigger` JSON verbatim** (previously built it but returned a text note that was never rendered).
+- `core/brain.py::stream_think` forwards any tool result containing `"hologram_trigger"` verbatim to the browser; other tools still get the generic `render_tool` activity flash.
+- New popup layer in the HUD (`interfaces/web/static/js/app.js` `createPopup`): draggable, closable, cascading windows; tool activity stays in the small hologram box.
+- Widgets: **map** (Google Maps embed iframe, no API key), **weather** (`/api/hud/weather` → wttr.in), **orders** (`/api/hud/orders` → `jammer_orders` + `transactions` from `workspace/business_ledger.db`), **report**, **image**.
+- `interfaces/web/hud_api.py` — new read-only JSON router included in `main.py`; inherits the Cloudflare Access gate.
+
+### R12. Mobile/Android hardening — ✅ DONE
+- Visible `NET:` connection status (CONNECTING / SECURE / RECONNECTING) so a stuck socket no longer looks like "READY forever".
+- STT error taxonomy: `not-allowed`/`audio-capture`/`aborted` stop auto-restart; `network`/`service-not-allowed`/`language-not-supported` counted — after 3 consecutive failures, auto-listen stops and a fallback note appears **with the actual error name shown** for debugging.
+- **Text input fallback** added under the transcript box (works on any browser, sends the same WS payload as STT).
+- `visibilitychange` handler resumes AudioContext, re-acquires wake lock, reconnects WS when returning to the tab.
+- Screen **wake lock** requested on boot; mobile CSS for popups/transcript.
+
+---
+
+## 🛠️ Voice HUD 2.1 (2026-08-15, Round 3) — Orbit removal, more widgets, server-side STT
+
+### R13. Orbit provider fully removed — ✅ DONE
+- Deleted from `config.py` (`ORBIT_API_KEY`, `QA_MODEL_NAME`, `ORBIT_BASE_URL`), `core/gemini_client.py` (`build_client(use_orbit=...)` → plain `build_client()`), `core/brain.py` (`use_orbit` flag, `[PROVIDER: ORBIT]` prompt routing, streaming fallback), `interfaces/userbot/secretary_brain.py` call site, `.env.example`.
+- No prompt file contained `[PROVIDER: ORBIT]`. Verified: zero `orbit`/`QA_MODEL` references remain in `*.py`.
+- User action (optional): delete the stale `ORBIT_API_KEY=` line from the live `.env`.
+
+### R14. Live-data hologram widgets — ✅ DONE
+- `show_hologram` enum extended: `schedule`, `tasks`, `sysinfo` (data payload unused for these — HUD fetches live).
+- New endpoints in `interfaces/web/hud_api.py`: `/api/hud/schedule` (APScheduler jobs: id, prompt preview, next run), `/api/hud/tasks` (Sir's ongoing tasks via `memory_controller`), `/api/hud/sysinfo` (psutil CPU/RAM/disk).
+- Client renderers: schedule table, task list, vitals badges.
+- Say e.g. "show my schedules" / "what tasks are ongoing" / "system vitals" and the popup appears while Jarvis speaks.
+
+### R15. Server-side STT fallback — ⏪ REVERTED (2026-08-15, user decision)
+- **Root cause of Redmi Note 13 Pro failure (researched):** Chrome's Web Speech API on some Xiaomi/MIUI/HyperOS builds fails with `network`/`service-not-allowed` because the Google speech service is missing or blocked; this is a device environment issue, not a code bug. HTTPS, mic permission, and disabling display-over-other-apps overlays are prerequisites on the phone.
+- A Gemini-transcription push-to-talk fallback was implemented (`{"type":"audio"}` WS message, `_gemini_stt_sync()`, MediaRecorder PTT client) but the **user does not want the STT fallback** — all of it was removed. On unsupported devices the HUD now shows the actual error name plus the typing input (R12 behavior).
+
+### R16. Gemini TTS production fixes — ⏪ MOOT (engine reverted to edge-tts, see R10)
+- Live logs exposed three Gemini TTS failure modes: `API_KEY_INVALID` killing a sentence (rotation only retried quota errors), "model tried to generate text" 400 (bare text input), and empty `candidates[0].content` (`'NoneType' object has no attribute 'parts'`). Fixes were written (`_is_invalid_key_error` rotation, read-aloud `TTS_INSTRUCTION`, `_extract_tts_pcm` guards + retry) but the engine was reverted to edge-tts before they mattered. If Gemini TTS is ever revisited, this note lists the required hardening.
+
+### R17. Voice answers directly — tool feedback loop, no Telegram detour — ✅ DONE
+- **Incident (2026-08-15 live log):** a voice news query took ~8s and the answer arrived via **Telegram**, not voice: the voice brain (role `ceo`) had no `search_web` access (`tools.web` → `researcher`), so it called `delegate_task` → researcher → `WORKFLOW_COMPLETED` → CEO agent → `report_to_sir`. Holograms never appeared because nothing told the model to call `show_hologram`, and tool results were never fed back for a spoken reply.
+- **Fixes:**
+  - `core/brain.py::stream_think` now runs a **tool feedback loop** (max 3 rounds): function-call parts are echoed back as `model` content, results go back as `function_response` parts, and the follow-up answer keeps streaming (truncated to 4000 chars/result).
+  - `VOICE_HUD_DIRECTIVE` injected into every voice prompt: short spoken Burmese, **never delegate_task / report_to_sir**, call `search_web` directly for news, call `show_hologram` when Sir asks to *see* something + one-line spoken summary.
+  - `core/registry.py`: `tools.web` tools are now visible to **ceo** as well (same special-case as `deep_researcher`). Telegram-side impact: CEO *can* now search directly instead of delegating light lookups — accepted.
+- **Expected latency:** simple turns ~2-4s (LLM + first-chunk TTS at first comma); search turns ~5-7s (one search + summary), instead of the ~25s delegate→orchestrator→Telegram chain.
+
+### R18. Voice session hardening — deterministic tool filter, memory, popup close fix — ✅ DONE
+- **Delegation persisted** after R17 because `core/prompts/ceo.md` contains hard "CEO PROTOCOL" system-instruction rules (news MUST go to researcher) that overruled the user-prompt directive. Fix is now deterministic: `JarvisBrain(role="ceo", voice_mode=True)` strips `delegate_task`, `report_to_sir`, `publish_event` from the tool declarations (`VOICE_BLOCKED_TOOLS`) — the model *cannot* delegate on voice; Telegram path (`voice_mode=False`, default) is unchanged.
+- **Conversation memory:** the voice WS endpoint kept calling `stream_think(user_text)` with the default empty history. Now each connection keeps the last 12 turns (`Sir: … / Jarvis: …` pairs) and passes them via `chat_history`.
+- **Popup close button** was dead on touch: the header drag handler's `setPointerCapture` swallowed the ✕ click. Drag now ignores taps on the close button (`e.target.closest('.hud-popup-close')`), the click handler stops propagation, and the button grew to 28px for touch.
+
+### R19. Mobile connection hygiene — fast reconnect, dead-socket watchdog — ✅ DONE
+- **Incident:** "10s latency" reports persisted even though the server pipeline measured **1.9s end-to-end** (Gemini stream 0.9s + edge-tts 0.6s, verified via live WS probe). Log analysis showed the slow turns always followed a silent reconnect — the phone spoke into a half-open socket, waited, reconnected, replayed.
+- **Fixes in `interfaces/web/static/js/app.js` (v23):**
+  - Reconnect backoff capped at **3s** (was 15s), starting at 500ms.
+  - **Dead-socket watchdog:** server pings every 20s; if the client hears nothing for 45s on an "open" socket (mobile network switch / tab suspend), it force-closes and reconnects.
+  - **Utterance queue:** text spoken while the socket is down is held in `pendingText` and flushed on `onopen` instead of being dropped.
+  - `visibilitychange` now treats a socket idle >30s as dead (it can *look* OPEN after suspend) and reconnects immediately on tab return.
+- No server restart needed for these (static files served live); users must hard-refresh once to get v23.
+
+---
+- Voice: "မန္တလေး မြေပုံ ပြပါ" (map), "ရာသီဥတု ပြပါ" (weather), "schedule စာရင်း ပြပါ", "orders ပြပါ", "system vitals ပြပါ".
+- Browser console (HUD open): `renderHologram({action:"render_weather", data:"Mandalay"})` — popup should appear instantly; same for `render_schedule`, `render_orders`, `render_tasks`, `render_sysinfo`.
+- APIs directly: `curl -s http://127.0.0.1:8000/api/hud/weather?city=Mandalay` (also `/schedule`, `/tasks`, `/orders`, `/sysinfo`).
+
+---
+
+## 🎬 Iron Man JARVIS — roadmap to near-parity (proposed, not yet approved)
+
+Ordered by impact/effort. Items 1–3 are the biggest "feels like the movie" wins.
+
+1. **Barge-in / full duplex** — Gemini Live API native audio (`Config.VOICE_MODEL` family) so Sir can interrupt Jarvis mid-sentence, like the films. Replaces the chunked STT→LLM→TTS pipeline on the WS with one bidirectional audio stream.
+2. **Wake word** — "Jarvis" hotword (Picovoice Porcupine or openWakeWord server-side) so no touch-to-init is needed on a dedicated device; falls back to tap on browsers.
+3. **Proactive briefing on boot** — on HUD connect, server pushes a greeting card: time, weather, unread business orders/payments count, scheduler jobs due today (data already exists in `core/scheduler.py` + `business_storage`).
+4. **Tool activity feed** — persistent side rail listing every tool call as it happens (extends the `render_tool` flash into a scrolling log; zero backend change needed, the events already stream).
+5. **Audio-reactive reactor** — Web Audio `AnalyserNode` drives reactor ring scale/glow with TTS amplitude; mic level drives it while listening.
+6. **Server-side STT (Whisper or Gemini transcription)** — unlocks Safari/Firefox and non-Google Android ROMs (e.g. Redmi/HyperOS where Web Speech is broken). Note: a Gemini-PTT version was built (R15) then removed per user decision; revisit only if requested.
+7. **Face/vision check-in** — optional webcam snapshot on boot sent through `perception/vision_analyzer.py` for "Welcome back, Sir" style contextual greetings (reuse existing face engine).
+8. **PWA packaging** — manifest + service worker + add-to-homescreen icon; offline shell shows "SYSTEM OFFLINE" screen when tunnel is down.
+9. ~~HUD system telemetry~~ — ✅ DONE (R14 `/api/hud/sysinfo`). Remaining upgrade: always-on corner panel with live psutil bars.
+10. **Voice biometrics** — speaker-recognition gate before sensitive tools (on top of Cloudflare Access).
+11. **Conversation memory panel** — scrollable transcript history from `memory/sql_storage.py` chat history.
+12. **Notification channel** — business events (new VIP payment, jammer order) push a hologram alert to any connected HUD via a broadcast WS hub.
+
+### Intentionally diverging from the movie
+- No always-listening on the open internet: Access gate + origin allowlist stay mandatory.
+- No destructive automation without Telegram confirmation (existing `shell_exec`/firewall guards remain).
 
 ---
 

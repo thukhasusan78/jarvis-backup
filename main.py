@@ -56,6 +56,10 @@ app = FastAPI(
 # 🎙️ Voice Streaming Engine (out of scope for hardening auth this cycle)
 app.include_router(voice_router)
 
+# 📊 HUD popup data feeds (weather / Telegram order data)
+from interfaces.web.hud_api import router as hud_api_router
+app.include_router(hud_api_router)
+
 # 👈 Web UI အတွက် Folder များကို Server တွင် ချိတ်ဆက်ခြင်း
 web_dir = os.path.join("interfaces", "web")
 os.makedirs(os.path.join(web_dir, "static"), exist_ok=True)

@@ -34,7 +34,7 @@ class SecretaryBrain:
         ]
 
     def _get_client(self):
-        return build_client(use_orbit=False)
+        return build_client()
 
     async def reply(self, chat_id: int, user_name: str, text: str, chat_history_text: str) -> str:
         """Async Background Delegation ပါဝင်သော Chat System"""

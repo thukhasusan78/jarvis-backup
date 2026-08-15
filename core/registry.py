@@ -78,8 +78,8 @@ class ToolRegistry:
         declarations = []
         for tool in self._tools.values():
             assigned_role = self.resolve_owner_role(tool)
-            # web tools: deep_researcher may also see researcher tools
-            if assigned_role == "researcher" and role == "deep_researcher":
+            # web tools: deep_researcher and ceo (voice HUD answers directly) may also see researcher tools
+            if assigned_role == "researcher" and role in ("deep_researcher", "ceo"):
                 assigned_role = role
             if role_allowed(role, assigned_role):
                 declarations.append(tool.get_declaration())
@@ -92,7 +92,7 @@ class ToolRegistry:
             return False
         tool = self._tools[tool_name]
         assigned_role = self.resolve_owner_role(tool)
-        if assigned_role == "researcher" and role == "deep_researcher":
+        if assigned_role == "researcher" and role in ("deep_researcher", "ceo"):
             assigned_role = role
         return role_allowed(role, assigned_role)
 

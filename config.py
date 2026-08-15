@@ -16,18 +16,21 @@ class Config:
     # ငွေရှာမယ့် Agent ဖြစ်လို့ အမြန်ဆုံးနဲ့ စရိတ်အသက်သာဆုံး Model ကို သုံးမယ်
     MODEL_NAME = "gemini-2.5-flash" 
 
-    SMART_MODEL_NAME = "gemini-3-flash-preview" # Orbit ရဲ့ 3 Pro ကို သုံးမယ်
+    SMART_MODEL_NAME = "gemini-3-flash-preview"
 
     # --- VOICE CONFIG ---
-    VOICE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
+    # Google AI Studio TTS (Gemini) — returns 24kHz 16-bit mono PCM via generate_content.
+    # Voices: https://ai.google.dev/gemini-api/docs/speech-generation
+    VOICE_MODEL = "gemini-2.5-flash-preview-tts"
 
     VOICE_NAME = "Enceladus"
-    
-    # --- 🌌 Orbit Provider API Settings ---
-    ORBIT_API_KEY = os.getenv("ORBIT_API_KEY") 
-    QA_MODEL_NAME = "gemini-claude-opus-4-6-thinking"
-    ORBIT_BASE_URL = "https://api.orbit-provider.com/cliproxy-api/api/provider/agy"
-    
+    # Comma-separated Origins allowed for /ws/voice (empty = allow all, for local dev).
+    # Production tunnel example: https://jarvis.thukha.online
+    _voice_origins_raw = os.getenv("VOICE_ALLOWED_ORIGINS", "").strip()
+    VOICE_ALLOWED_ORIGINS = [
+        o.strip().rstrip("/") for o in _voice_origins_raw.split(",") if o.strip()
+    ]
+
     # API Keys Management (Round Robin System)
     _keys_str = os.getenv("GEMINI_API_KEYS", "")
     if not _keys_str:
@@ -77,7 +80,8 @@ class Config:
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 
     # --- ⚙️ Server Config ---
-    HOST = os.getenv("HOST", "0.0.0.0")
+    # Tunnel mode: bind localhost only (Cloudflare Tunnel is the public ingress).
+    HOST = os.getenv("HOST", "127.0.0.1")
     PORT = int(os.getenv("PORT", 8000))
     TIMEZONE = pytz.timezone('Asia/Yangon')
 

@@ -1,7 +1,7 @@
 import os
+import json
 import time
 import logging
-from google import genai
 from google.genai import types
 from config import Config
 from core.registry import tool_registry
@@ -12,12 +12,27 @@ from core.gemini_client import build_client, is_quota_error
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("JARVIS_BRAIN")
 
+# Voice HUD sessions talk directly to Sir — delegation/Telegram reporting only
+# delays the answer and sends it to the wrong channel.
+VOICE_HUD_DIRECTIVE = """
+[VOICE HUD MODE — HIGHEST PRIORITY]
+- You are on a LIVE voice call with Sir right now. Answer in short, natural spoken Burmese (1-3 sentences unless he asks for detail). No markdown, no bullet lists.
+- NEVER use delegate_task or report_to_sir — those report to Telegram and he will never hear the answer here.
+- For news or web questions, call search_web yourself, then summarize the results out loud.
+- When Sir asks to SEE something, call show_hologram (map / weather / orders / schedule / tasks / sysinfo / report / image) and also give a one-line spoken summary.
+"""
+
 class JarvisBrain:
-    def __init__(self, role: str = "ceo"):
+    # Voice sessions answer directly — delegation/report tools only send the
+    # answer to Telegram, so they are removed from the voice tool belt.
+    VOICE_BLOCKED_TOOLS = {"delegate_task", "report_to_sir", "publish_event"}
+
+    def __init__(self, role: str = "ceo", voice_mode: bool = False):
         """
         Jarvis Brain Initialization with Dynamic Model Routing
         """
         self.role = role
+        self.voice_mode = voice_mode
         self.model_name = Config.MODEL_NAME  # Default အနေနဲ့ Normal Model ကို အရင်ပေးထားမယ်
         
         # ၁။ Agent ရဲ့ ကိုယ်ပိုင်ဖိုင်ကို prompts folder အောက်မှာ နေရာအနှံ့လိုက်ရှာမယ်
@@ -33,35 +48,30 @@ class JarvisBrain:
         
         # ကိုယ်ပိုင်ဖိုင်ရှိရင် အဲဒါဖတ်မယ်၊ မရှိရင် system.md ကို ဖတ်မယ်
         prompt_path = prompt_path if prompt_path else system_prompt_path
-        
-        # Orbit သုံးမသုံး ခွဲခြားရန် Flag
-        self.use_orbit = False
-        
+
         if os.path.exists(prompt_path):
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 self.system_instruction = f.read()
-                
+
             # 💡 SMART ROUTER LOGIC: (မူလအတိုင်း ထားရှိသည်)
             if "[MODEL: SMART]" in self.system_instruction:
                 self.model_name = Config.SMART_MODEL_NAME
-                
-            # 🚀 ORBIT DYNAMIC LOGIC: ဖိုင်ထဲမှာ [PROVIDER: ORBIT] ပါရင် Claude 4.6 နဲ့ Orbit ကို သုံးမည်
-            if "[PROVIDER: ORBIT]" in self.system_instruction:
-                self.use_orbit = True
-                self.model_name = Config.QA_MODEL_NAME
         else:
             self.system_instruction = "You are a helpful AI assistant."
-        
+
         # Registry ကနေ Role နဲ့ ကိုက်ညီတာကိုပဲ အလိုလို ခွဲယူမယ်
+        declarations = tool_registry.get_declarations_for_role(self.role)
+        if self.voice_mode:
+            declarations = [d for d in declarations if d.name not in self.VOICE_BLOCKED_TOOLS]
         self.tools_config = [
             types.Tool(
-                function_declarations=tool_registry.get_declarations_for_role(self.role)
+                function_declarations=declarations
             )
         ]
 
     def _get_client(self):
-        """Round-Robin Key Rotation or Orbit Gateway"""
-        return build_client(use_orbit=getattr(self, "use_orbit", False))
+        """Round-Robin Key Rotation Client"""
+        return build_client()
 
     def think(self, user_input, chat_history=[], context_memory=""):
         """
@@ -122,23 +132,28 @@ class JarvisBrain:
 
     async def stream_think(self, user_input, chat_history=[], context_memory=""):
             """
-            Voice WebSocket အတွက် အသံချက်ချင်းထုတ်နိုင်ရန် True Streaming ပြုလုပ်ပေးမည့် Function အသစ်
+            Voice WebSocket အတွက် အသံချက်ချင်းထုတ်နိုင်ရန် True Streaming
             (Tools များနှင့် Context များကို အပြည့်အဝ အသုံးပြုနိုင်သည်)
+
+            Tool Feedback Loop ပါဝင်သည် — Tool Result ကို Model ဆီ ပြန်ပို့၍
+            Spoken Answer ကို ဆက်လက် Stream လုပ်သည် (delegate/Telegram report မလိုအပ်)။
             """
             try:
                 # 1. Client နှင့် အချက်အလက်များ ပြင်ဆင်ခြင်း
                 client = self._get_client()
                 dynamic_context = context_manager.get_current_context()
-                
+
                 full_prompt = f"""
                 {dynamic_context}
-                
+
+                {VOICE_HUD_DIRECTIVE}
+
                 Context from Memory:
                 {context_memory}
-                
+
                 Chat History:
                 {chat_history}
-                
+
                 User Input:
                 {user_input}
                 """
@@ -150,44 +165,68 @@ class JarvisBrain:
                     temperature=0.7,
                 )
 
-                # 3. 🤖 Async Stream ဖြင့် Gemini ထံမှ အဖြေကို တောင်းခံခြင်း
-                # (မှတ်ချက် - Orbit API က Streaming မရနိုင်သေးပါက Error တက်နိုင်သဖြင့် Normal Model ကိုသာ ဦးစားပေးသုံးသည်)
-                model_to_use = self.model_name
-                if self.use_orbit:
-                    logger.warning("Orbit API might not support True Streaming yet. Falling back to Normal Model.")
-                    client = genai.Client(api_key=Config.get_next_api_key())
-                    model_to_use = Config.MODEL_NAME
+                # 3. 🤖 Async Stream + Tool Feedback Loop (အများဆုံး ၃ ပတ်ခန့်)
+                contents = [full_prompt]
 
-                response_stream = await client.aio.models.generate_content_stream(
-                    model=model_to_use,
-                    contents=full_prompt,
-                    config=config
-                )
+                for _round in range(3):
+                    response_stream = await client.aio.models.generate_content_stream(
+                        model=self.model_name,
+                        contents=contents,
+                        config=config
+                    )
 
-                # 4. ⚡ ရလာသော အဖြေများကို Yield (အပိုင်းလိုက်) ဖြင့် ပြန်ထုတ်ပေးခြင်း
-                async for chunk in response_stream:
-                    
-                    # --- Tool Call များကို ဖမ်းယူခြင်း ---
-                    if chunk.function_calls:
-                        for fc in chunk.function_calls:
-                            tool_name = fc.name
-                            tool_args = dict(fc.args) if fc.args else {}
-                            logger.info(f"⚙️ Streaming Brain executing tool: {tool_name}")
-                            
-                            # Registry မှ Tool ကို အမှန်တကယ် Run မည်
-                            tool_result = await tool_registry.execute_tool(
-                                tool_name, caller_role=self.role, **tool_args
+                    fn_calls = []
+                    model_parts = []
+
+                    async for chunk in response_stream:
+                        if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                            model_parts.extend(chunk.candidates[0].content.parts)
+
+                        if chunk.function_calls:
+                            fn_calls.extend(chunk.function_calls)
+
+                        # --- ပုံမှန် စာသားများကို ချက်ချင်း Yield ---
+                        if chunk.text:
+                            yield chunk.text
+
+                    # Tool call မပါရင် Spoken Answer ပြီးပါပြီ
+                    if not fn_calls:
+                        return
+
+                    # Model ရဲ့ function_call parts များကို history ထဲ ထည့်မည်
+                    if model_parts:
+                        contents.append(types.Content(role="model", parts=model_parts))
+
+                    # 4. ⚙️ Tool များကို Run ပြီး Results ကို Model ဆီ ပြန်ပို့မည်
+                    response_parts = []
+                    for fc in fn_calls:
+                        tool_name = fc.name
+                        tool_args = dict(fc.args) if fc.args else {}
+                        logger.info(f"⚙️ Streaming Brain executing tool: {tool_name}")
+
+                        tool_result = await tool_registry.execute_tool(
+                            tool_name, caller_role=self.role, **tool_args
+                        )
+
+                        # show_hologram ကဲ့သို့ UI-bound tool များ၏ JSON ကို browser သို့ verbatim yield မည်
+                        if isinstance(tool_result, str) and '"hologram_trigger"' in tool_result:
+                            yield tool_result.strip()
+                        else:
+                            yield json.dumps({
+                                "type": "hologram_trigger",
+                                "action": "render_tool",
+                                "data": f"{tool_name} executed",
+                            })
+
+                        response_parts.append(
+                            types.Part.from_function_response(
+                                name=tool_name,
+                                response={"result": str(tool_result)[:4000]},
                             )
-                            
-                            # Tool အဖြေကို AI ဆီ ပြန်ပို့ပြီး အသံဖြင့် ပြန်ဖြေခိုင်းမည့် အပိုင်းကို 
-                            # နောက်ပိုင်းတွင် ထပ်မံ အဆင့်မြှင့်တင်နိုင်ပါသည်။
-                            # (လောလောဆယ် Web UI တွင် Hologram ပြရန် JSON သာ ထုတ်ပေးမည်)
-                            yield f'{{"type": "hologram_trigger", "action": "render_tool", "data": "{tool_name} executed"}}'
-                    
-                    # --- ပုံမှန် စာသားများကို ဖမ်းယူခြင်း ---
-                    if chunk.text:
-                        yield chunk.text
+                        )
+
+                    contents.append(types.Content(role="user", parts=response_parts))
 
             except Exception as e:
                 logger.error(f"❌ Streaming Error: {e}")
-                yield "တောင်းပန်ပါတယ် ဆရာ၊ အင်တာနက် ချိတ်ဆက်မှု အဆင်မပြေဖြစ်နေပါတယ်။"        
+                yield "တောင်းပန်ပါတယ် ဆရာ၊ အင်တာနက် ချိတ်ဆက်မှု အဆင်မပြေဖြစ်နေပါတယ်။"

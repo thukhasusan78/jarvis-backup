@@ -394,6 +394,25 @@ def test_config_validate():
         Config.ALLOWED_USER_ID = original
 
 
+def test_voice_origin_allowlist():
+    print("\n🎙️ Voice WS — Origin allowlist guard")
+    from config import Config
+    from interfaces.voice.stream_engine import is_voice_origin_allowed
+
+    original = Config.VOICE_ALLOWED_ORIGINS
+    try:
+        Config.VOICE_ALLOWED_ORIGINS = []
+        check("empty allowlist allows all (local dev)", is_voice_origin_allowed("https://evil.com") and is_voice_origin_allowed(None))
+
+        Config.VOICE_ALLOWED_ORIGINS = ["https://jarvis.thukha.online"]
+        check("allow exact match", is_voice_origin_allowed("https://jarvis.thukha.online"))
+        check("allow trailing-slash match", is_voice_origin_allowed("https://jarvis.thukha.online/"))
+        check("reject missing origin", not is_voice_origin_allowed(None))
+        check("reject other origin", not is_voice_origin_allowed("https://evil.com"))
+    finally:
+        Config.VOICE_ALLOWED_ORIGINS = original
+
+
 async def main():
     print("=" * 50)
     print("🧪 JARVIS SMOKE / HARDENING TESTS")
@@ -412,6 +431,7 @@ async def main():
     await test_publish_event_structured()
     test_manual_movie_schema()
     test_config_validate()
+    test_voice_origin_allowlist()
     print("\n" + "=" * 50)
     print(f"RESULT: {PASS} passed, {FAIL} failed")
     print("=" * 50)
